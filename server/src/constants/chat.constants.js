@@ -1,0 +1,25 @@
+export const CONVERSATION_TYPE = { DIRECT: "DIRECT" };
+
+export const MESSAGE_TYPE = {
+  TEXT: "TEXT",
+  IMAGE: "IMAGE",
+  VIDEO: "VIDEO",
+  PDF: "PDF",
+  DOCX: "DOCX",
+  EXCEL: "EXCEL",
+};
+
+export const ONLINE_STATUS = {
+  ONLINE: "ONLINE",
+  OFFLINE: "OFFLINE",
+  AWAY: "AWAY",
+};
+
+export const ALLOWED_CHAT_PAIRS = [
+  ["SUPER_ADMIN", "MAIN_ADMIN"],
+  ["MAIN_ADMIN", "SUB_ADMIN"],
+  ["MAIN_ADMIN", "EMPLOYEE"],
+  ["SUB_ADMIN", "EMPLOYEE"],
+];
+
+export default { CONVERSATION_TYPE, MESSAGE_TYPE, ONLINE_STATUS, ALLOWED_CHAT_PAIRS };

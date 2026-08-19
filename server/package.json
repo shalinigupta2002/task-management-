@@ -1,0 +1,47 @@
+{
+  "name": "taskflow-server",
+  "version": "1.0.0",
+  "description": "Enterprise Multi-Tenant SaaS Task Management — Organization Management API",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "node prisma/seed.js",
+    "db:seed:test": "node prisma/seed-test-users.js",
+    "db:seed:frequencies": "node prisma/seed-frequencies.js",
+    "db:seed:verify": "node scratch/verify-test-seed.js",
+    "test:category-frequency": "node scratch/test-category-frequency.js",
+    "db:seed:tasks": "node prisma/seed-tasks.js",
+    "db:seed:chat": "node prisma/seed-chat.js",
+    "db:backfill:category-codes": "node prisma/backfill-category-codes.js",
+    "db:backfill:frequency-days": "node prisma/backfill-frequency-number-of-days.js",
+    "db:studio": "prisma studio"
+  },
+  "keywords": ["task-management", "saas", "multi-tenant"],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-validator": "^7.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "socket.io": "^4.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}

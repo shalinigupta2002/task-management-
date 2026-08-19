@@ -1,0 +1,827 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  TRIAL
+  PENDING
+}
+
+enum PlanDuration {
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum OnboardingStatus {
+  CHECKOUT_CREATED
+  PAYMENT_PENDING
+  PAYMENT_FAILED
+  PAYMENT_SUCCESS
+  ONBOARDING_PENDING
+  ONBOARDING_COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  OVERDUE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AssignmentStatus {
+  PENDING
+  ACCEPTED
+  REASSIGNED
+  CANCELLED
+}
+
+enum TaskRecurrenceType {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum OccurrenceAssigneeStatus {
+  PENDING
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  OVERDUE
+  CANCELLED
+}
+
+enum ExtensionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TaskActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_ASSIGNED
+  TASK_REASSIGNED
+  STATUS_CHANGED
+  COMMENT_ADDED
+  ATTACHMENT_UPLOADED
+  EXTENSION_REQUESTED
+  EXTENSION_APPROVED
+  EXTENSION_REJECTED
+  TASK_COMPLETED
+  TASK_PENDING_APPROVAL
+  TASK_APPROVED
+  TASK_REJECTED
+  DUE_DATE_EXTENDED
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique @db.VarChar(50)
+  description String?      @db.Text
+  status      EntityStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@index([status])
+  @@index([deletedAt])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  module      String   @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Company {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyName String       @map("company_name") @db.VarChar(200)
+  companyCode String       @unique @map("company_code") @db.VarChar(50)
+  email       String       @unique @db.VarChar(255)
+  phone       String?      @db.VarChar(30)
+  website     String?      @db.VarChar(255)
+  address     String?      @db.Text
+  city        String?      @db.VarChar(100)
+  state       String?      @db.VarChar(100)
+  country     String?      @db.VarChar(100)
+  postalCode  String?      @map("postal_code") @db.VarChar(20)
+  industry    String?      @db.VarChar(100)
+  logo        String?      @db.Text
+  status      EntityStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  departments    Department[]
+  users          User[]
+  subscriptions  CompanySubscription[]
+  taskCategories TaskCategory[]
+  tasks          Task[]
+  conversations  Conversation[]
+  auditLogs      AuditLog[]
+  reports        Report[]
+  onboarding     CompanyOnboarding?
+
+  @@index([status])
+  @@index([companyName])
+  @@index([deletedAt])
+  @@map("companies")
+}
+
+model SubscriptionPlan {
+  id              String       @id @default(uuid()) @db.Uuid
+  planName        String       @unique @map("plan_name") @db.VarChar(100)
+  description     String?      @db.Text
+  monthlyPrice    Decimal      @map("monthly_price") @db.Decimal(12, 2)
+  yearlyPrice     Decimal      @map("yearly_price") @db.Decimal(12, 2)
+  duration        PlanDuration @default(MONTHLY)
+  maxEmployees    Int          @map("max_employees")
+  maxDepartments  Int          @map("max_departments")
+  maxActiveTasks  Int          @map("max_active_tasks")
+  features        Json         @default("[]")
+  status          EntityStatus @default(ACTIVE)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  subscriptions CompanySubscription[]
+  onboardings   CompanyOnboarding[]
+
+  @@index([status])
+  @@index([deletedAt])
+  @@map("subscription_plans")
+}
+
+model CompanySubscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  companyId          String             @map("company_id") @db.Uuid
+  subscriptionPlanId String             @map("subscription_plan_id") @db.Uuid
+  startDate          DateTime           @map("start_date")
+  expiryDate         DateTime           @map("expiry_date")
+  subscriptionStatus SubscriptionStatus @default(ACTIVE) @map("subscription_status")
+  billingCycle       BillingCycle?      @map("billing_cycle")
+  amountPaid         Decimal?           @map("amount_paid") @db.Decimal(12, 2)
+  currency           String?            @default("INR") @db.VarChar(10)
+  paymentReference   String?            @map("payment_reference") @db.VarChar(150)
+  onboardingId       String?            @unique @map("onboarding_id") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptionPlan SubscriptionPlan    @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
+  onboarding       CompanyOnboarding?  @relation(fields: [onboardingId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([subscriptionPlanId])
+  @@index([subscriptionStatus])
+  @@index([expiryDate])
+  @@index([deletedAt])
+  @@map("company_subscriptions")
+}
+
+/// Pending / completed self-service company registration after payment.
+model CompanyOnboarding {
+  id                 String           @id @default(uuid()) @db.Uuid
+  referenceCode      String           @unique @map("reference_code") @db.VarChar(64)
+  sessionTokenHash   String           @map("session_token_hash") @db.VarChar(255)
+  status             OnboardingStatus @default(CHECKOUT_CREATED)
+  subscriptionPlanId String           @map("subscription_plan_id") @db.Uuid
+  billingCycle       BillingCycle     @map("billing_cycle")
+  amountInPaise      Int              @map("amount_in_paise")
+  currency           String           @default("INR") @db.VarChar(10)
+  paymentProvider    String           @default("INTERNAL") @map("payment_provider") @db.VarChar(50)
+  paymentOrderId     String?          @unique @map("payment_order_id") @db.VarChar(100)
+  paymentPaymentId   String?          @map("payment_payment_id") @db.VarChar(100)
+  paymentSignature   String?          @map("payment_signature") @db.VarChar(255)
+  paidAt             DateTime?        @map("paid_at")
+  companyId          String?          @unique @map("company_id") @db.Uuid
+  contactEmail       String?          @map("contact_email") @db.VarChar(255)
+  metadata           Json?
+  expiresAt          DateTime?        @map("expires_at")
+  completedAt        DateTime?        @map("completed_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  subscriptionPlan SubscriptionPlan     @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
+  company          Company?             @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  subscription     CompanySubscription?
+
+  @@index([status])
+  @@index([subscriptionPlanId])
+  @@index([paymentOrderId])
+  @@index([expiresAt])
+  @@map("company_onboardings")
+}
+
+model Department {
+  id             String       @id @default(uuid()) @db.Uuid
+  departmentName String       @map("department_name") @db.VarChar(150)
+  departmentCode String       @map("department_code") @db.VarChar(50)
+  description    String?      @db.Text
+  status         EntityStatus @default(ACTIVE)
+  companyId      String       @map("company_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users   User[]
+  tasks   Task[]
+  taskCategories TaskCategory[]
+
+  @@unique([companyId, departmentCode])
+  @@index([companyId])
+  @@index([status])
+  @@index([departmentName])
+  @@index([deletedAt])
+  @@map("departments")
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  employeeId   String?      @map("employee_id") @db.VarChar(50)
+  firstName    String       @map("first_name") @db.VarChar(100)
+  lastName     String       @map("last_name") @db.VarChar(100)
+  email        String       @unique @db.VarChar(255)
+  phone        String?      @db.VarChar(30)
+  password     String       @db.VarChar(255)
+  profileImage String?      @map("profile_image") @db.Text
+  designation  String?      @db.VarChar(150)
+  status       EntityStatus @default(ACTIVE)
+  lastLogin    DateTime?    @map("last_login")
+  companyId    String?      @map("company_id") @db.Uuid
+  departmentId String?      @map("department_id") @db.Uuid
+  roleId       String       @map("role_id") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  company    Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  role       Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  tasksCreated        Task[]              @relation("TaskCreatedBy")
+  tasksUpdated        Task[]              @relation("TaskUpdatedBy")
+  assignmentsGiven    TaskAssignment[]    @relation("AssignmentAssignedBy")
+  assignmentsReceived TaskAssignment[]    @relation("AssignmentAssignedTo")
+  taskComments        TaskComment[]
+  taskAttachments     TaskAttachment[]
+  taskActivities      TaskActivity[]
+  taskStatusChanges   TaskStatusHistory[]
+  extensionRequests   ExtensionRequest[]  @relation("ExtensionRequestedBy")
+  extensionApprovals  ExtensionRequest[]  @relation("ExtensionApprovedBy")
+  tasksApproved       Task[]              @relation("TaskApprover")
+  occurrenceAssignees TaskOccurrenceAssignee[] @relation("OccurrenceAssignee")
+  occurrenceCompletions TaskOccurrenceAssignee[] @relation("OccurrenceCompletedBy")
+  occurrenceApprovals TaskOccurrenceAssignee[] @relation("OccurrenceApprovedBy")
+
+  conversationParticipants ConversationParticipant[]
+  messagesSent             Message[]                 @relation("MessageSender")
+  messagesReceived         Message[]                 @relation("MessageReceiver")
+  notifications            Notification[]
+  notificationPreference   NotificationPreference?
+  onlineSessions           OnlineUser[]
+  auditLogs                AuditLog[]
+
+  @@unique([companyId, employeeId])
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([roleId])
+  @@index([status])
+  @@index([firstName, lastName])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+// ─── Task Management Module ───────────────────────────────────────────────────
+
+model TaskCategory {
+  id           String       @id @default(uuid()) @db.Uuid
+  categoryName String       @map("category_name") @db.VarChar(150)
+  categoryCode String       @map("category_code") @db.VarChar(20)
+  description  String?      @db.Text
+  status       EntityStatus @default(ACTIVE)
+  companyId    String       @map("company_id") @db.Uuid
+  departmentId String?      @map("department_id") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  tasks      Task[]
+
+  @@unique([companyId, categoryName])
+  @@unique([companyId, categoryCode])
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("task_categories")
+}
+
+model TaskFrequency {
+  id            String       @id @default(uuid()) @db.Uuid
+  frequencyName String       @unique @map("frequency_name") @db.VarChar(100)
+  daysInterval  Int          @map("days_interval")
+  numberOfDays  Int          @map("number_of_days")
+  description   String?      @db.Text
+  status        EntityStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  deletedAt     DateTime?    @map("deleted_at")
+
+  tasks Task[]
+
+  @@index([deletedAt])
+  @@index([status])
+  @@map("task_frequencies")
+}
+
+model Task {
+  id             String       @id @default(uuid()) @db.Uuid
+  taskCode       String       @map("task_code") @db.VarChar(50)
+  title          String       @db.VarChar(300)
+  description    String?      @db.Text
+  priority       TaskPriority @default(MEDIUM)
+  status         TaskStatus   @default(OPEN)
+  startDate      DateTime?    @map("start_date")
+  dueDate        DateTime?    @map("due_date")
+  endDate        DateTime?    @map("end_date")
+  durationDays   Int?         @map("duration_days")
+  recurrenceType TaskRecurrenceType @default(ONE_TIME) @map("recurrence_type")
+  approverId     String?      @map("approver_id") @db.Uuid
+  completedAt    DateTime?    @map("completed_at")
+  estimatedHours Decimal?     @map("estimated_hours") @db.Decimal(8, 2)
+  actualHours    Decimal?     @map("actual_hours") @db.Decimal(8, 2)
+  categoryId     String?      @map("category_id") @db.Uuid
+  frequencyId    String?      @map("frequency_id") @db.Uuid
+  companyId      String       @map("company_id") @db.Uuid
+  departmentId   String?      @map("department_id") @db.Uuid
+  createdById    String       @map("created_by") @db.Uuid
+  updatedById    String?      @map("updated_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  category    TaskCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  frequency   TaskFrequency?  @relation(fields: [frequencyId], references: [id], onDelete: SetNull)
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department  Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdBy   User            @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?             @relation("TaskUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  approver    User?             @relation("TaskApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  assignments       TaskAssignment[]
+  occurrences       TaskOccurrence[]
+  comments          TaskComment[]
+  attachments       TaskAttachment[]
+  activities        TaskActivity[]
+  statusHistory     TaskStatusHistory[]
+  extensionRequests ExtensionRequest[]
+
+  @@unique([companyId, taskCode])
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([categoryId])
+  @@index([frequencyId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([endDate])
+  @@index([approverId])
+  @@index([recurrenceType])
+  @@index([createdById])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id           String           @id @default(uuid()) @db.Uuid
+  taskId       String           @map("task_id") @db.Uuid
+  assignedById String           @map("assigned_by") @db.Uuid
+  assignedToId String           @map("assigned_to") @db.Uuid
+  assignedDate DateTime         @default(now()) @map("assigned_date")
+  acceptedAt   DateTime?        @map("accepted_at")
+  status       AssignmentStatus @default(PENDING)
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignedBy User @relation("AssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedTo User @relation("AssignmentAssignedTo", fields: [assignedToId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([assignedToId])
+  @@index([assignedById])
+  @@index([status])
+  @@unique([taskId, assignedToId])
+  @@map("task_assignments")
+}
+
+model TaskOccurrence {
+  id              String   @id @default(uuid()) @db.Uuid
+  taskId          String   @map("task_id") @db.Uuid
+  occurrenceDate  DateTime @map("occurrence_date") @db.Date
+  sequenceNumber  Int      @map("sequence_number")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  task       Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignees  TaskOccurrenceAssignee[]
+
+  @@unique([taskId, occurrenceDate])
+  @@index([taskId])
+  @@index([occurrenceDate])
+  @@map("task_occurrences")
+}
+
+model TaskOccurrenceAssignee {
+  id              String                   @id @default(uuid()) @db.Uuid
+  occurrenceId    String                   @map("occurrence_id") @db.Uuid
+  assigneeId      String                   @map("assignee_id") @db.Uuid
+  status          OccurrenceAssigneeStatus @default(OPEN)
+  progress        Int                      @default(0)
+  completedAt     DateTime?                @map("completed_at")
+  completedById   String?                  @map("completed_by") @db.Uuid
+  submittedAt     DateTime?                @map("submitted_at")
+  approvedById    String?                  @map("approved_by") @db.Uuid
+  approvedAt      DateTime?                @map("approved_at")
+  rejectionReason String?                  @map("rejection_reason") @db.Text
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  occurrence  TaskOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  assignee    User           @relation("OccurrenceAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  completedBy User?          @relation("OccurrenceCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  approvedBy  User?          @relation("OccurrenceApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([occurrenceId, assigneeId])
+  @@index([occurrenceId])
+  @@index([assigneeId])
+  @@index([status])
+  @@map("task_occurrence_assignees")
+}
+
+model TaskComment {
+  id        String    @id @default(uuid()) @db.Uuid
+  taskId    String    @map("task_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  comment   String    @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("task_comments")
+}
+
+model TaskAttachment {
+  id           String    @id @default(uuid()) @db.Uuid
+  taskId       String    @map("task_id") @db.Uuid
+  uploadedById String    @map("uploaded_by") @db.Uuid
+  fileName     String    @map("file_name") @db.VarChar(255)
+  originalName String    @map("original_name") @db.VarChar(255)
+  fileType     String    @map("file_type") @db.VarChar(100)
+  fileSize     Int       @map("file_size")
+  fileUrl      String    @map("file_url") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([uploadedById])
+  @@index([deletedAt])
+  @@map("task_attachments")
+}
+
+model TaskActivity {
+  id            String           @id @default(uuid()) @db.Uuid
+  taskId        String           @map("task_id") @db.Uuid
+  performedById String           @map("performed_by") @db.Uuid
+  activityType  TaskActivityType @map("activity_type")
+  description   String           @db.Text
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  task        Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  performedBy User @relation(fields: [performedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([performedById])
+  @@index([activityType])
+  @@index([createdAt])
+  @@map("task_activities")
+}
+
+model TaskStatusHistory {
+  id          String     @id @default(uuid()) @db.Uuid
+  taskId      String     @map("task_id") @db.Uuid
+  oldStatus   TaskStatus @map("old_status")
+  newStatus   TaskStatus @map("new_status")
+  changedById String     @map("changed_by") @db.Uuid
+  changedAt   DateTime   @default(now()) @map("changed_at")
+
+  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  changedBy User @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([changedById])
+  @@index([changedAt])
+  @@map("task_status_history")
+}
+
+model ExtensionRequest {
+  id               String                 @id @default(uuid()) @db.Uuid
+  taskId           String                 @map("task_id") @db.Uuid
+  requestedById    String                 @map("requested_by") @db.Uuid
+  requestedDate    DateTime               @default(now()) @map("requested_date")
+  currentDueDate   DateTime               @map("current_due_date")
+  requestedDueDate DateTime               @map("requested_due_date")
+  reason           String                 @db.Text
+  status           ExtensionRequestStatus @default(PENDING)
+  approvedById     String?                @map("approved_by") @db.Uuid
+  approvedDate     DateTime?              @map("approved_date")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  task        Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requestedBy User  @relation("ExtensionRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy  User? @relation("ExtensionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([requestedById])
+  @@index([status])
+  @@map("extension_requests")
+}
+
+// ─── Chat, Notification & Real-time Module ────────────────────────────────────
+
+enum ConversationType {
+  DIRECT
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  PDF
+  DOCX
+  EXCEL
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  TASK_COMPLETED
+  TASK_REMINDER
+  TASK_PENDING_APPROVAL
+  TASK_APPROVED
+  TASK_REJECTED
+  DUE_TODAY
+  OVERDUE
+  EXTENSION_REQUESTED
+  EXTENSION_APPROVED
+  EXTENSION_REJECTED
+  NEW_MESSAGE
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ReferenceType {
+  TASK
+  MESSAGE
+  EXTENSION
+  CONVERSATION
+  SYSTEM
+}
+
+enum OnlineStatus {
+  ONLINE
+  OFFLINE
+  AWAY
+}
+
+model Conversation {
+  id               String           @id @default(uuid()) @db.Uuid
+  companyId        String           @map("company_id") @db.Uuid
+  conversationType ConversationType @default(DIRECT) @map("conversation_type")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  company      Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([companyId])
+  @@index([conversationType])
+  @@index([updatedAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  joinedAt       DateTime @default(now()) @map("joined_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String      @id @default(uuid()) @db.Uuid
+  conversationId String      @map("conversation_id") @db.Uuid
+  senderId       String      @map("sender_id") @db.Uuid
+  receiverId     String      @map("receiver_id") @db.Uuid
+  message        String      @db.Text
+  messageType    MessageType @default(TEXT) @map("message_type")
+  attachmentUrl  String?     @map("attachment_url") @db.Text
+  attachmentName String?   @map("attachment_name") @db.VarChar(255)
+  attachmentSize Int?        @map("attachment_size")
+  isRead         Boolean     @default(false) @map("is_read")
+  readAt         DateTime?   @map("read_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  receiver     User         @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("messages")
+}
+
+model Notification {
+  id            String               @id @default(uuid()) @db.Uuid
+  userId        String               @map("user_id") @db.Uuid
+  title         String               @db.VarChar(300)
+  message       String               @db.Text
+  type          NotificationType
+  priority      NotificationPriority @default(MEDIUM)
+  referenceType ReferenceType?       @map("reference_type")
+  referenceId   String?              @map("reference_id") @db.Uuid
+  isRead        Boolean              @default(false) @map("is_read")
+  readAt        DateTime?            @map("read_at")
+  createdAt     DateTime             @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([referenceType, referenceId])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                  String  @id @default(uuid()) @db.Uuid
+  userId              String  @unique @map("user_id") @db.Uuid
+  taskReminder        Boolean @default(true) @map("task_reminder")
+  overdueReminder     Boolean @default(true) @map("overdue_reminder")
+  messageNotification Boolean @default(true) @map("message_notification")
+  systemNotification  Boolean @default(true) @map("system_notification")
+  emailNotification   Boolean @default(false) @map("email_notification")
+  inAppNotification   Boolean @default(true) @map("in_app_notification")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model OnlineUser {
+  id       String       @id @default(uuid()) @db.Uuid
+  userId   String       @map("user_id") @db.Uuid
+  socketId String       @map("socket_id") @db.VarChar(100)
+  lastSeen DateTime     @default(now()) @map("last_seen")
+  status   OnlineStatus @default(ONLINE)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([socketId])
+  @@index([userId])
+  @@index([status])
+  @@map("online_users")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  role      String?  @db.VarChar(50)
+  action    String   @db.VarChar(100)
+  entity    String?  @db.VarChar(100)
+  entityId  String?  @map("entity_id") @db.VarChar(100)
+  timestamp DateTime @default(now()) @map("timestamp")
+  ip        String?  @db.VarChar(45)
+  metadata  Json?    @default("{}")
+
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model Report {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @db.VarChar(255)
+  type        String       @db.VarChar(100)
+  period      String       @db.VarChar(100)
+  status      String       @db.VarChar(50)
+  companyId   String       @map("company_id") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([deletedAt])
+  @@map("reports")
+}
