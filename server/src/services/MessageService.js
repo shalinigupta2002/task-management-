@@ -29,7 +29,11 @@ class MessageService {
     await assertConversationMember(userId, data.conversationId);
 
     const conversation = await ConversationRepository.findById(data.conversationId);
-    const otherParticipant = conversation.participants.find((p) => p.userId !== userId);
+    const otherParticipant =
+      conversation.participants.find(
+        (p) => p.userId !== userId && p.user?.role?.name !== "SUPER_ADMIN"
+      )
+      || conversation.participants.find((p) => p.userId !== userId);
     if (!otherParticipant) throw ApiError.badRequest("Invalid conversation");
 
     const receiver = await loadChatUser(otherParticipant.userId);

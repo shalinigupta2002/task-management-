@@ -1,0 +1,21 @@
+export const ENDPOINTS = {
+  auth: {
+    login: "/v1/auth/login",
+    register: "/v1/auth/register",
+    logout: "/v1/auth/logout",
+    refresh: "/v1/auth/refresh",
+    me: "/v1/auth/me",
+  },
+  companies: "/v1/company",
+  employees: "/v1/user",
+  users: "/v1/user",
+  departments: "/v1/department",
+  tasks: "/v1/tasks",
+  taskOccurrences: "/v1/task-occurrences",
+  taskCategories: "/v1/task-categories",
+  taskFrequency: "/v1/task-frequency",
+  notifications: "/v1/notifications",
+  messages: "/v1/messages",
+  reports: "/v1/reports",
+  dashboard: "/v1/dashboard",
+};

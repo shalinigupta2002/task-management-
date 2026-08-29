@@ -31,6 +31,11 @@ export const conversationQuerySchema = z.object({
   companyId: uuid.optional(),
 });
 
+/** Optional targetRole for Contact Sub Admin / Admin / Super Admin discovery */
+export const eligibleContactsQuerySchema = z.object({
+  targetRole: z.enum(["SUB_ADMIN", "MAIN_ADMIN", "SUPER_ADMIN"]).optional(),
+});
+
 export const messageCreateSchema = z.object({
   conversationId: uuid,
   message: z.string().min(1).max(10000),

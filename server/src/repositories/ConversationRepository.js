@@ -47,8 +47,13 @@ class ConversationRepository {
           AND: [{ participants: { some: { userId: userIdB } } }],
         },
         include: participantInclude,
+        orderBy: { updatedAt: "desc" },
       });
-      return conversations.find((c) => c.participants.length === 2) ?? null;
+      // Prefer classic 1:1 DIRECT pair; otherwise reuse any shared thread
+      // (e.g. after a second Super Admin auto-joined a support conversation).
+      return conversations.find((c) => c.participants.length === 2)
+        ?? conversations[0]
+        ?? null;
     } catch (error) {
       handlePrismaError(error);
     }
@@ -68,7 +73,50 @@ class ConversationRepository {
           skip,
           take: limit,
           orderBy: { updatedAt: "desc" },
-          include: participantInclude,
+          include: {
+            ...participantInclude,
+            company: { select: { id: true, companyName: true, companyCode: true } },
+          },
+        }),
+        prisma.conversation.count({ where }),
+      ]);
+
+      return { items, meta: buildPaginationMeta(total, page, limit) };
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  /**
+   * Platform Company Inbox for Super Admin:
+   * all conversations that already include any Super Admin participant
+   * (typically MAIN_ADMIN ↔ SUPER_ADMIN support threads), optionally filtered by company.
+   */
+  async findSuperAdminCompanyInbox(query = {}) {
+    try {
+      const { page, limit, skip } = parsePagination(query);
+      const where = {
+        participants: {
+          some: {
+            user: {
+              deletedAt: null,
+              role: { name: "SUPER_ADMIN" },
+            },
+          },
+        },
+        ...(query.companyId ? { companyId: query.companyId } : {}),
+      };
+
+      const [items, total] = await Promise.all([
+        prisma.conversation.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { updatedAt: "desc" },
+          include: {
+            ...participantInclude,
+            company: { select: { id: true, companyName: true, companyCode: true } },
+          },
         }),
         prisma.conversation.count({ where }),
       ]);

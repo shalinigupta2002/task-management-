@@ -56,6 +56,25 @@ async function main() {
   // Clean existing data (order matters for FK constraints)
   await prisma.rolePermission.deleteMany();
   await prisma.companySubscription.deleteMany();
+  await prisma.taskOccurrenceAssignee.deleteMany();
+  await prisma.taskOccurrence.deleteMany();
+  await prisma.taskAssignment.deleteMany();
+  await prisma.taskActivity.deleteMany();
+  await prisma.taskStatusHistory.deleteMany();
+  await prisma.extensionRequest.deleteMany();
+  await prisma.taskAttachment.deleteMany();
+  await prisma.taskComment.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.taskCategory.deleteMany();
+  await prisma.taskFrequency.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.notificationPreference.deleteMany();
+  await prisma.onlineUser.deleteMany();
+  await prisma.companyUserCodeSequence.deleteMany();
+  await prisma.companyOnboarding.deleteMany();
   await prisma.user.deleteMany();
   await prisma.department.deleteMany();
   await prisma.company.deleteMany();

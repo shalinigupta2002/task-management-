@@ -7,6 +7,10 @@ import {
   userUpdateSchema,
   userQuerySchema,
   employeeCreateSchema,
+  subAdminCreateSchema,
+  managedUserQuerySchema,
+  userSelfUpdateSchema,
+  employeeCodePreviewQuerySchema,
   idParamSchema,
 } from "../validators/index.js";
 import { ROLES } from "../constants/index.js";
@@ -22,6 +26,18 @@ router.use(authenticate);
  *   description: User management
  */
 
+/** Current authenticated user profile */
+router.get("/me", UserController.getMe);
+router.patch("/me", validate(userSelfUpdateSchema), UserController.updateMe);
+
+/** Preview next auto-generated employee / sub-admin code */
+router.get(
+  "/employee-code-preview",
+  authorize(ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
+  validate(employeeCodePreviewQuerySchema, "query"),
+  UserController.previewEmployeeCode
+);
+
 /** Employee Management — always EMPLOYEE role (must be registered before /:id) */
 router.get(
   "/employees",
@@ -35,6 +51,22 @@ router.post(
   authorize(ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
   validate(employeeCreateSchema),
   UserController.createEmployee
+);
+
+/** Sub Admin Management — always SUB_ADMIN role; company from auth */
+router.post(
+  "/sub-admins",
+  authorize(ROLES.MAIN_ADMIN),
+  validate(subAdminCreateSchema),
+  UserController.createSubAdmin
+);
+
+/** Main Admin User List — SUB_ADMIN + EMPLOYEE only; excludes self / MAIN_ADMIN / SUPER_ADMIN */
+router.get(
+  "/managed",
+  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
+  validate(managedUserQuerySchema, "query"),
+  UserController.getManagedUsers
 );
 
 router.get("/", validate(userQuerySchema, "query"), UserController.getAll);

@@ -5,6 +5,7 @@ import validate from "../middlewares/validate.middleware.js";
 import {
   conversationCreateSchema,
   conversationQuerySchema,
+  eligibleContactsQuerySchema,
   idParamSchema,
 } from "../validators/chat.validators.js";
 
@@ -40,6 +41,16 @@ router.use(authenticate);
  *         description: Paginated conversation list
  */
 router.get("/", validate(conversationQuerySchema, "query"), ConversationController.getAll);
+
+/**
+ * Role-based eligible contacts for Contact Sub Admin / Main Admin / Super Admin buttons.
+ * Must be registered before /:id
+ */
+router.get(
+  "/contacts/eligible",
+  validate(eligibleContactsQuerySchema, "query"),
+  ConversationController.getEligibleContacts
+);
 
 /**
  * @swagger

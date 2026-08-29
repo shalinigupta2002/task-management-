@@ -1,0 +1,15 @@
+export const STORAGE_KEYS = {
+  accessToken: "accessToken",
+  refreshToken: "refreshToken",
+  user: "user",
+  isAuthenticated: "isAuthenticated",
+  recentSearches: "tm_recent_searches",
+  companies: "sa_companies",
+  employees: "tm_employees",
+  tasks: "tm_tasks",
+  taskCategories: "tm_task_categories",
+  taskFrequencies: "tm_task_frequencies",
+  departments: "tm_departments",
+  notifications: "sa_notifications",
+  messages: "sa_messages",
+};

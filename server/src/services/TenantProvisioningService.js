@@ -7,6 +7,7 @@ import ApiError from "../utils/ApiError.js";
 import { hashPassword } from "../utils/password.js";
 import { sanitizeUser } from "../utils/sanitize.js";
 import { logAudit } from "../utils/auditLogger.js";
+import { allocateEmployeeCode } from "./employeeCodeService.js";
 
 export function splitAdminName(fullName) {
   const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
@@ -105,6 +106,26 @@ export async function provisionTenant({
       },
     });
 
+    const defaultCategories = [
+      { name: "Development", code: "DEV" },
+      { name: "Design", code: "DSGN" },
+      { name: "Marketing", code: "MKT" },
+      { name: "Operations", code: "OPS" },
+      { name: "Support", code: "SUP" },
+    ];
+
+    for (const cat of defaultCategories) {
+      await tx.taskCategory.create({
+        data: {
+          categoryName: cat.name,
+          categoryCode: cat.code,
+          description: `${cat.name} tasks for ${company.companyName}`,
+          status: "ACTIVE",
+          companyId: company.id,
+        },
+      });
+    }
+
     const adminUser = await tx.user.create({
       data: {
         firstName,
@@ -116,6 +137,11 @@ export async function provisionTenant({
         status: "ACTIVE",
         companyId: company.id,
         roleId: mainAdminRole.id,
+        employeeId: await allocateEmployeeCode(tx, {
+          companyId: company.id,
+          companyCode: company.companyCode,
+          roleName: "MAIN_ADMIN",
+        }),
       },
       include: {
         role: { select: { id: true, name: true, description: true } },
@@ -140,7 +166,7 @@ export async function provisionTenant({
     });
 
     return { company, adminUser, subscription };
-  });
+  }, { timeout: 60000 });
 
   if (auditContext) {
     await logAudit(auditContext, auditAction, "Company", created.company.id, {

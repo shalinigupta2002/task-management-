@@ -13,7 +13,8 @@ export const loginSchema = z.object({
 
 class AuthService {
   async login(email, password) {
-    const user = await UserRepository.findByEmailWithPassword(email);
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const user = await UserRepository.findByEmailWithPassword(normalizedEmail);
     if (!user) throw ApiError.unauthorized("Invalid email or password");
 
     const valid = await comparePassword(password, user.password);

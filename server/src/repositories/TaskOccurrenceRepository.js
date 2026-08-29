@@ -34,27 +34,35 @@ class TaskOccurrenceRepository {
   async createManyForTask(taskId, dates, assigneeIds, tx = prisma) {
     try {
       const uniqueAssignees = [...new Set(assigneeIds)];
-      const results = [];
 
-      for (let i = 0; i < dates.length; i += 1) {
-        const occurrence = await tx.taskOccurrence.create({
-          data: {
-            taskId,
-            occurrenceDate: dates[i],
-            sequenceNumber: i + 1,
-            assignees: {
-              create: uniqueAssignees.map((assigneeId) => ({
-                assigneeId,
-                status: "OPEN",
-              })),
-            },
-          },
-          include: occurrenceInclude,
+      // Bulk insert occurrences (one round-trip), then bulk insert assignees.
+      await tx.taskOccurrence.createMany({
+        data: dates.map((occurrenceDate, i) => ({
+          taskId,
+          occurrenceDate,
+          sequenceNumber: i + 1,
+        })),
+      });
+
+      const created = await tx.taskOccurrence.findMany({
+        where: { taskId },
+        select: { id: true, sequenceNumber: true },
+        orderBy: { sequenceNumber: "asc" },
+      });
+
+      if (uniqueAssignees.length > 0 && created.length > 0) {
+        await tx.taskOccurrenceAssignee.createMany({
+          data: created.flatMap((occurrence) =>
+            uniqueAssignees.map((assigneeId) => ({
+              occurrenceId: occurrence.id,
+              assigneeId,
+              status: "OPEN",
+            }))
+          ),
         });
-        results.push(occurrence);
       }
 
-      return results;
+      return created;
     } catch (error) {
       handlePrismaError(error);
     }

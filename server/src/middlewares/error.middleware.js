@@ -24,8 +24,8 @@ export function errorHandler(err, _req, res, _next) {
   });
 }
 
-export function notFoundHandler(_req, _res, next) {
-  next(ApiError.notFound("API route not found"));
+export function notFoundHandler(req, _res, next) {
+  next(ApiError.notFound(`API route not found: ${req.method} ${req.originalUrl}`));
 }
 
 export default errorHandler;

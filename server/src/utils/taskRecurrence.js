@@ -1,4 +1,6 @@
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** Hard cap so a bad interval/endDate cannot spin forever */
+const MAX_OCCURRENCES = 366;
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -54,7 +56,7 @@ export function buildOccurrenceDates({
 
   if (type === "DAILY") {
     let cursor = start;
-    while (cursor <= end) {
+    while (cursor <= end && dates.length < MAX_OCCURRENCES) {
       dates.push(new Date(cursor));
       cursor = addDays(cursor, step);
     }
@@ -64,7 +66,7 @@ export function buildOccurrenceDates({
   if (type === "WEEKLY") {
     let cursor = start;
     const weeklyStep = step >= 7 ? step : 7;
-    while (cursor <= end) {
+    while (cursor <= end && dates.length < MAX_OCCURRENCES) {
       dates.push(new Date(cursor));
       cursor = addDays(cursor, weeklyStep);
     }
@@ -73,7 +75,7 @@ export function buildOccurrenceDates({
 
   if (type === "MONTHLY") {
     let cursor = new Date(start);
-    while (cursor <= end) {
+    while (cursor <= end && dates.length < MAX_OCCURRENCES) {
       dates.push(startOfDay(cursor));
       const next = new Date(cursor);
       next.setUTCMonth(next.getUTCMonth() + 1);

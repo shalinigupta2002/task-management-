@@ -15,11 +15,36 @@ export const ONLINE_STATUS = {
   AWAY: "AWAY",
 };
 
+/**
+ * Bidirectional pairs allowed for messaging within an existing conversation
+ * (replies along the hierarchy chain).
+ *
+ * Strict hierarchy edges only:
+ *   EMPLOYEE ↔ SUB_ADMIN
+ *   SUB_ADMIN ↔ MAIN_ADMIN
+ *   MAIN_ADMIN ↔ SUPER_ADMIN
+ */
 export const ALLOWED_CHAT_PAIRS = [
   ["SUPER_ADMIN", "MAIN_ADMIN"],
   ["MAIN_ADMIN", "SUB_ADMIN"],
-  ["MAIN_ADMIN", "EMPLOYEE"],
   ["SUB_ADMIN", "EMPLOYEE"],
 ];
 
-export default { CONVERSATION_TYPE, MESSAGE_TYPE, ONLINE_STATUS, ALLOWED_CHAT_PAIRS };
+/**
+ * Who may *initiate* a new conversation with whom.
+ * Keys are sender roles; values are allowed recipient roles.
+ */
+export const CHAT_INITIATE_TARGETS = {
+  EMPLOYEE: ["SUB_ADMIN"],
+  SUB_ADMIN: ["MAIN_ADMIN"],
+  MAIN_ADMIN: ["SUPER_ADMIN"],
+  SUPER_ADMIN: ["MAIN_ADMIN"],
+};
+
+export default {
+  CONVERSATION_TYPE,
+  MESSAGE_TYPE,
+  ONLINE_STATUS,
+  ALLOWED_CHAT_PAIRS,
+  CHAT_INITIATE_TARGETS,
+};

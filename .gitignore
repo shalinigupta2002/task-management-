@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs & OS
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editors / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local / tooling
+*.local
+.cache/
+.tmp/
+.temp/
+
+# Uploads / runtime (if present)
+uploads/
+tmp/
+
+# Agent recovery / large scratch dumps (keep useful test scripts)
+server/scratch/*.json
+server/scratch/*_content.txt
+server/scratch/reconstructed_*
+server/scratch/replayed_*
+server/scratch/large_step.json

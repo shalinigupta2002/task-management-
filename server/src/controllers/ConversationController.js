@@ -26,6 +26,14 @@ class ConversationController {
     );
     return ApiResponse.created(res, conversation, "Conversation created successfully");
   });
+
+  getEligibleContacts = asyncHandler(async (req, res) => {
+    const result = await ConversationService.getEligibleContacts(
+      req.user.userId,
+      req.validatedQuery || req.query
+    );
+    return ApiResponse.success(res, result);
+  });
 }
 
 export default new ConversationController();

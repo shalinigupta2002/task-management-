@@ -1,0 +1,13 @@
+.sidebar {
+    width: 16rem;
+    background-color: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+  }
+  
+  .dark .sidebar {
+    background-color: #1f2937;
+    border-right-color: #374151;
+  }

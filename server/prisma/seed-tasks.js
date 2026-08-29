@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { buildOccurrenceDates } from "../src/utils/taskRecurrence.js";
 
 const prisma = new PrismaClient();
 
@@ -13,11 +12,11 @@ const FREQUENCIES = [
 ];
 
 const CATEGORY_DEFS = [
-  { name: "Development", color: "#3B82F6" },
-  { name: "Design", color: "#8B5CF6" },
-  { name: "Marketing", color: "#F59E0B" },
-  { name: "Operations", color: "#10B981" },
-  { name: "Support", color: "#EF4444" },
+  { name: "Development", code: "DEV" },
+  { name: "Design", code: "DSGN" },
+  { name: "Marketing", code: "MKT" },
+  { name: "Operations", code: "OPS" },
+  { name: "Support", code: "SUP" },
 ];
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
@@ -48,8 +47,6 @@ async function main() {
   await prisma.extensionRequest.deleteMany();
   await prisma.taskAttachment.deleteMany();
   await prisma.taskComment.deleteMany();
-  await prisma.taskOccurrenceAssignee.deleteMany();
-  await prisma.taskOccurrence.deleteMany();
   await prisma.taskAssignment.deleteMany();
   await prisma.task.deleteMany();
   await prisma.taskCategory.deleteMany();
@@ -66,12 +63,11 @@ async function main() {
   const categories = [];
   for (const company of companies) {
     for (const cat of CATEGORY_DEFS) {
-      const codeSuffix = company.companyCode.replace("TF-", "");
       categories.push(
         await prisma.taskCategory.create({
           data: {
             categoryName: cat.name,
-            categoryCode: `${cat.name.slice(0, 3).toUpperCase()}-${codeSuffix}`,
+            categoryCode: cat.code,
             description: `${cat.name} tasks for ${company.companyName}`,
             status: "ACTIVE",
             companyId: company.id,
@@ -114,12 +110,6 @@ async function main() {
     const startDate = addDays(now, -Math.floor(Math.random() * 30));
     const dueDate = addDays(startDate, Math.floor(Math.random() * 60) + 7);
 
-    const selectedFreq = pick(frequencies);
-    let recurrenceType = "ONE_TIME";
-    if (selectedFreq.frequencyName === "Daily") recurrenceType = "DAILY";
-    else if (selectedFreq.frequencyName === "Weekly") recurrenceType = "WEEKLY";
-    else if (selectedFreq.frequencyName === "Monthly") recurrenceType = "MONTHLY";
-
     const task = await prisma.task.create({
       data: {
         taskCode: `TSK-${String(taskCounters[company.id]).padStart(4, "0")}`,
@@ -129,12 +119,11 @@ async function main() {
         status,
         startDate,
         dueDate,
-        recurrenceType,
         completedAt: status === "COMPLETED" ? addDays(startDate, 5) : null,
         estimatedHours: Math.floor(Math.random() * 40) + 1,
         actualHours: status === "COMPLETED" ? Math.floor(Math.random() * 40) + 1 : null,
         categoryId: pick(companyCats).id,
-        frequencyId: selectedFreq.id,
+        frequencyId: pick(frequencies).id,
         companyId: company.id,
         departmentId: pick(companyDepts).id,
         createdById: creator.id,
@@ -161,81 +150,9 @@ async function main() {
       },
     });
 
-    // Generate and seed task occurrences
-    const occurrenceDates = buildOccurrenceDates({
-      recurrenceType,
-      startDate,
-      endDate: dueDate,
-      intervalDays: selectedFreq.daysInterval,
-    });
-
-    for (let seq = 0; seq < occurrenceDates.length; seq++) {
-      const occDate = occurrenceDates[seq];
-      
-      let occStatus = "OPEN";
-      let progress = 0;
-      let completedAt = null;
-      let completedById = null;
-      let submittedAt = null;
-      let approvedById = null;
-      let approvedAt = null;
-
-      if (status === "COMPLETED") {
-        occStatus = "APPROVED";
-        progress = 100;
-        completedAt = addDays(occDate, 1);
-        completedById = assignee.id;
-        submittedAt = addDays(occDate, 1);
-        approvedById = creator.id;
-        approvedAt = addDays(occDate, 2);
-      } else if (status === "IN_PROGRESS") {
-        const isLast = seq === occurrenceDates.length - 1;
-        if (isLast) {
-          occStatus = "IN_PROGRESS";
-          progress = 40;
-        } else {
-          occStatus = "APPROVED";
-          progress = 100;
-          completedAt = addDays(occDate, 1);
-          completedById = assignee.id;
-          submittedAt = addDays(occDate, 1);
-          approvedById = creator.id;
-          approvedAt = addDays(occDate, 2);
-        }
-      } else if (status === "OVERDUE") {
-        occStatus = "OVERDUE";
-        progress = 10;
-      } else if (status === "CANCELLED") {
-        occStatus = "CANCELLED";
-        progress = 0;
-      }
-
-      await prisma.taskOccurrence.create({
-        data: {
-          taskId: task.id,
-          occurrenceDate: occDate,
-          sequenceNumber: seq + 1,
-          assignees: {
-            create: [
-              {
-                assigneeId: assignee.id,
-                status: occStatus,
-                progress,
-                completedAt,
-                completedById,
-                submittedAt,
-                approvedById,
-                approvedAt,
-              }
-            ]
-          }
-        }
-      });
-    }
-
     tasks.push(task);
   }
-  console.log("Created 100 tasks with assignments and occurrences");
+  console.log("Created 100 tasks with assignments");
 
   // 200 Comments
   for (let i = 0; i < 200; i++) {

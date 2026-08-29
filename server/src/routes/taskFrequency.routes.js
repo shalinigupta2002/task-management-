@@ -88,7 +88,7 @@ router.get("/:id", validate(idParamSchema, "params"), TaskFrequencyController.ge
  */
 router.post(
   "/",
-  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN),
+  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
   validate(taskFrequencyCreateSchema),
   TaskFrequencyController.create
 );
@@ -111,7 +111,7 @@ router.post(
  */
 router.patch(
   "/:id",
-  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN),
+  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
   validate(idParamSchema, "params"),
   validate(taskFrequencyUpdateSchema),
   TaskFrequencyController.update
@@ -135,7 +135,7 @@ router.patch(
  */
 router.delete(
   "/:id",
-  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN),
+  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
   validate(idParamSchema, "params"),
   TaskFrequencyController.remove
 );

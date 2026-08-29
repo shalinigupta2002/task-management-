@@ -126,6 +126,8 @@ router.post("/", validate(messageCreateSchema), MessageController.send);
  *         description: Messages marked read
  */
 router.patch("/mark-read", validate(markMessagesReadSchema), MessageController.markRead);
+/** Compatibility alias — older clients used POST */
+router.post("/mark-read", validate(markMessagesReadSchema), MessageController.markRead);
 
 /**
  * @swagger

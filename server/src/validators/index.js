@@ -108,9 +108,7 @@ export const userCreateSchema = z.object({
   employeeId: z
     .string()
     .trim()
-    .min(1, "Employee Number is required")
-    .max(50, "Employee Number must be at most 50 characters")
-    .regex(/^[A-Za-z0-9_-]+$/, "Employee Number may only contain letters, numbers, hyphens, and underscores")
+    .max(50)
     .optional()
     .nullable()
     .or(z.literal("")),
@@ -127,14 +125,10 @@ export const userCreateSchema = z.object({
   roleId: uuid,
 });
 
-/** Dedicated employee-creation payload — role forced server-side to EMPLOYEE */
+/** Dedicated employee-creation payload — role forced EMPLOYEE; employeeId auto-generated */
 export const employeeCreateSchema = z.object({
-  employeeId: z
-    .string()
-    .trim()
-    .min(1, "Employee Number is required")
-    .max(50, "Employee Number must be at most 50 characters")
-    .regex(/^[A-Za-z0-9_-]+$/, "Employee Number may only contain letters, numbers, hyphens, and underscores"),
+  /** Ignored — system-generated */
+  employeeId: z.string().max(50).optional().nullable().or(z.literal("")),
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   email: z.string().email(),
@@ -143,6 +137,7 @@ export const employeeCreateSchema = z.object({
   confirmPassword: z.string().min(1).optional(),
   designation: z.string().max(150).optional().nullable().or(z.literal("")),
   departmentId: uuid.optional().nullable(),
+  joiningDate: z.coerce.date().optional().nullable(),
   status: entityStatus.optional(),
   /** Ignored — always EMPLOYEE */
   roleId: uuid.optional(),
@@ -151,17 +146,45 @@ export const employeeCreateSchema = z.object({
   path: ["confirmPassword"],
 });
 
+/** Dedicated Sub Admin creation — role forced SUB_ADMIN; employeeId auto-generated */
+export const subAdminCreateSchema = z.object({
+  /** Ignored — system-generated */
+  employeeId: z.string().max(50).optional().nullable().or(z.literal("")),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  email: z.string().email(),
+  phone: z.string().max(30).optional().nullable().or(z.literal("")),
+  password: strongPasswordSchema,
+  confirmPassword: z.string().min(1).optional(),
+  departmentId: uuid,
+  status: entityStatus.optional(),
+  /** Ignored — always SUB_ADMIN */
+  roleId: uuid.optional(),
+  /** Ignored — always from authenticated MAIN_ADMIN */
+  companyId: uuid.optional().nullable(),
+}).refine((d) => !d.confirmPassword || d.password === d.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+/** Preview next auto-generated employee code */
+export const employeeCodePreviewQuerySchema = z.object({
+  roleName: z.enum(["EMPLOYEE", "SUB_ADMIN", "MAIN_ADMIN"]).default("EMPLOYEE"),
+});
+
+/** Authenticated user self-service profile update */
+export const userSelfUpdateSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  phone: z.string().max(30).optional().nullable().or(z.literal("")),
+  designation: z.string().max(150).optional().nullable().or(z.literal("")),
+  profileImage: z.string().optional().nullable(),
+});
+
 export const userUpdateSchema = userCreateSchema.partial().omit({ password: true }).extend({
   password: z.string().min(8).max(128).optional(),
-  employeeId: z
-    .string()
-    .trim()
-    .min(1, "Employee Number is required")
-    .max(50, "Employee Number must be at most 50 characters")
-    .regex(/^[A-Za-z0-9_-]+$/, "Employee Number may only contain letters, numbers, hyphens, and underscores")
-    .optional()
-    .nullable()
-    .or(z.literal("")),
+  /** Ignored — employee code is immutable after creation */
+  employeeId: z.string().max(50).optional().nullable().or(z.literal("")),
 });
 
 export const userQuerySchema = paginationQuerySchema.extend({
@@ -169,6 +192,14 @@ export const userQuerySchema = paginationQuerySchema.extend({
   departmentId: uuid.optional(),
   roleId: uuid.optional(),
   roleName: z.enum(["SUPER_ADMIN", "MAIN_ADMIN", "SUB_ADMIN", "EMPLOYEE"]).optional(),
+});
+
+/** Main Admin User List — only SUB_ADMIN / EMPLOYEE filters allowed */
+export const managedUserQuerySchema = paginationQuerySchema.extend({
+  departmentId: uuid.optional(),
+  roleName: z.enum(["SUB_ADMIN", "EMPLOYEE"]).optional(),
+  /** Ignored — tenant always from auth for Main/Sub Admin */
+  companyId: uuid.optional(),
 });
 
 export const roleCreateSchema = z.object({

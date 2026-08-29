@@ -16,12 +16,17 @@ class UserRepository extends BaseRepository {
   }
 
   async findAll(query) {
-    const { companyId, departmentId, roleId, roleName, ...rest } = query;
+    const { companyId, departmentId, roleId, roleName, roleNames, excludeId, ...rest } = query;
     const extra = {};
     if (companyId) extra.companyId = companyId;
     if (departmentId) extra.departmentId = departmentId;
     if (roleId) extra.roleId = roleId;
-    if (roleName) extra.role = { name: roleName };
+    if (Array.isArray(roleNames) && roleNames.length > 0) {
+      extra.role = { name: { in: roleNames } };
+    } else if (roleName) {
+      extra.role = { name: roleName };
+    }
+    if (excludeId) extra.id = { not: excludeId };
 
     const result = await super.findAll(rest, extra, userInclude);
     return result;
@@ -39,15 +44,17 @@ class UserRepository extends BaseRepository {
   }
 
   async findByEmail(email) {
+    const normalized = String(email || "").trim().toLowerCase();
     return this.client.findFirst({
-      where: { email, ...this.notDeleted() },
+      where: { email: { equals: normalized, mode: "insensitive" }, ...this.notDeleted() },
       include: userInclude,
     });
   }
 
   async findByEmailWithPassword(email) {
+    const normalized = String(email || "").trim().toLowerCase();
     return this.client.findFirst({
-      where: { email, ...this.notDeleted() },
+      where: { email: { equals: normalized, mode: "insensitive" }, ...this.notDeleted() },
       include: { role: true, company: true },
     });
   }
@@ -62,6 +69,14 @@ class UserRepository extends BaseRepository {
       },
       include: userInclude,
     });
+  }
+
+  async create(data, include = userInclude, tx) {
+    return super.create(data, include ?? userInclude, tx);
+  }
+
+  async update(id, data, include = userInclude, tx) {
+    return super.update(id, data, include ?? userInclude, tx);
   }
 
   async updateLastLogin(id) {

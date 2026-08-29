@@ -32,7 +32,7 @@ export function canCreateTask(ctx) {
 }
 
 export function canDeleteTask(ctx) {
-  return isSuperAdmin(ctx) || isMainAdmin(ctx);
+  return isSuperAdmin(ctx) || isMainAdmin(ctx) || isSubAdmin(ctx);
 }
 
 export function canAssignTask(ctx) {

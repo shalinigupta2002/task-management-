@@ -63,10 +63,9 @@ class ReminderSchedulerService {
   }
 
   async notifyTaskUsers(task, type, title, message, category, since) {
+    // Only assignees receive due/reminder/overdue alerts — not all company users
     const assignees = await this.getTaskAssignees(task.id);
-    const userIds = new Set([...assignees, task.createdById]);
-
-    for (const userId of userIds) {
+    for (const userId of assignees) {
       await NotificationService.createIfNotDuplicate({
         userId,
         title,

@@ -176,7 +176,7 @@ router.patch(
  * @swagger
  * /tasks/{id}:
  *   delete:
- *     summary: Soft delete a task
+ *     summary: Soft delete a task (hides from lists; cancels open assignments/occurrences)
  *     tags: [Tasks]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -190,7 +190,7 @@ router.patch(
  */
 router.delete(
   "/:id",
-  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN),
+  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
   validate(idParamSchema, "params"),
   TaskController.remove
 );

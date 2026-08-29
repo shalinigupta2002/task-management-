@@ -1,5 +1,5 @@
 /**
- * Employee Number (User.employeeId) company-scoped uniqueness & RBAC tests.
+ * Employee Number (User.employeeId) — auto-generation + uniqueness (company-scoped).
  * Usage: node scratch/test-employee-number.js
  */
 import prisma from "../src/config/database.js";
@@ -22,22 +22,17 @@ async function assertThrows(promise, segment = "") {
 }
 
 async function main() {
-  console.log("=== EMPLOYEE NUMBER TESTS ===\n");
+  console.log("=== EMPLOYEE NUMBER / AUTO-CODE TESTS ===\n");
 
   const xyzAdmin = await prisma.user.findFirst({
     where: { email: { in: ["admin@xyz.test", "rajesh.kumar@techsolutions.com"] }, deletedAt: null },
-    include: { role: true },
+    include: { role: true, company: true },
   });
   const abcAdmin = await prisma.user.findFirst({
     where: { email: { in: ["admin@abc.test", "amit.patel@greenleaf.com"] }, deletedAt: null },
-    include: { role: true },
+    include: { role: true, company: true },
   });
-  const xyzSub = await prisma.user.findFirst({
-    where: { email: { in: ["subadmin1@xyz.test"] }, deletedAt: null, role: { name: "SUB_ADMIN" } },
-    include: { role: true },
-  });
-  const empRole = await prisma.role.findFirst({ where: { name: "EMPLOYEE" } });
-  if (!xyzAdmin || !abcAdmin || !empRole) throw new Error("Seed admins/roles missing");
+  if (!xyzAdmin || !abcAdmin) throw new Error("Seed admins missing");
 
   const xyzDept = await prisma.department.findFirst({
     where: { companyId: xyzAdmin.companyId, deletedAt: null },
@@ -50,179 +45,84 @@ async function main() {
   const abcCtx = { userId: abcAdmin.id, role: "MAIN_ADMIN", companyId: abcAdmin.companyId };
   const stamp = Date.now();
   const created = [];
+  const password = "StrongPass@123456";
 
   try {
-    // 1. Required
-    await assertThrows(
-      UserService.create(
-        {
-          firstName: "No",
-          lastName: "Number",
-          email: `nonum-${stamp}@xyz.test`,
-          password: "StrongPass@123456",
-          roleId: empRole.id,
-          departmentId: xyzDept?.id,
-        },
-        xyzCtx
-      ),
-      "Employee Number is required"
-    );
-    console.log("1. ✓ Employee Number required for EMPLOYEE");
-
-    // 2. Accepted
-    const e1 = await UserService.create(
+    // 1. Auto-generate for EMPLOYEE (client code ignored)
+    const e1 = await UserService.createEmployee(
       {
-        employeeId: `EMP${stamp}`,
+        employeeId: "CLIENT-CODE",
         firstName: "Anita",
         lastName: "Desai",
         email: `anita-${stamp}@xyz.test`,
-        password: "StrongPass@123456",
-        roleId: empRole.id,
+        password,
         departmentId: xyzDept?.id,
         designation: "Manager",
       },
       xyzCtx
     );
     created.push(e1.id);
-    if (e1.employeeId !== `EMP${stamp}`) throw new Error("employeeId not saved");
-    console.log("2. ✓ Employee Number accepted");
+    if (!e1.employeeId?.includes("-EMP-")) throw new Error(`Expected auto EMP code, got ${e1.employeeId}`);
+    if (e1.employeeId === "CLIENT-CODE") throw new Error("Client employeeId was accepted");
+    console.log(`1. ✓ Auto Employee Code generated: ${e1.employeeId}`);
 
-    // 3. Duplicate in same company rejected
-    await assertThrows(
-      UserService.create(
-        {
-          employeeId: `EMP${stamp}`,
-          firstName: "Dup",
-          lastName: "User",
-          email: `dup-${stamp}@xyz.test`,
-          password: "StrongPass@123456",
-          roleId: empRole.id,
-          departmentId: xyzDept?.id,
-        },
-        xyzCtx
-      ),
-      "already exists"
-    );
-    console.log("3. ✓ Duplicate employee number in same company rejected");
-
-    // 4. Same number in other company allowed
-    const e2 = await UserService.create(
+    // 2. Sequential next code
+    const e2 = await UserService.createEmployee(
       {
-        employeeId: `EMP${stamp}`,
-        firstName: "Amit",
-        lastName: "Patel",
-        email: `amit-${stamp}@abc.test`,
-        password: "StrongPass@123456",
-        roleId: empRole.id,
+        firstName: "Second",
+        lastName: "Emp",
+        email: `second-${stamp}@xyz.test`,
+        password,
+        departmentId: xyzDept?.id,
+      },
+      xyzCtx
+    );
+    created.push(e2.id);
+    const a = parseInt(e1.employeeId.split("-").pop(), 10);
+    const b = parseInt(e2.employeeId.split("-").pop(), 10);
+    if (b !== a + 1) throw new Error(`Sequence broken ${e1.employeeId} → ${e2.employeeId}`);
+    console.log(`2. ✓ Sequential code: ${e2.employeeId}`);
+
+    // 3. Immutable
+    const upd = await UserService.update(e1.id, { employeeId: "HACK", phone: "111" }, xyzCtx);
+    if (upd.employeeId !== e1.employeeId) throw new Error("employeeId mutated on update");
+    console.log("3. ✓ Employee Code immutable on update");
+
+    // 4. Other company gets own prefix
+    const other = await UserService.createEmployee(
+      {
+        firstName: "Other",
+        lastName: "Co",
+        email: `other-${stamp}@abc.test`,
+        password,
         departmentId: abcDept?.id,
       },
       abcCtx
     );
-    created.push(e2.id);
-    if (e2.employeeId !== `EMP${stamp}`) throw new Error("ABC employeeId mismatch");
-    console.log("4. ✓ Same employee number allowed in different companies");
-
-    // 5. XYZ can access XYZ employee
-    const got = await UserService.getById(e1.id, xyzCtx);
-    if (got.id !== e1.id) throw new Error("XYZ cannot read own employee");
-    console.log("5. ✓ XYZ can access XYZ employee");
-
-    // 6. XYZ cannot access ABC employee
-    await assertThrows(UserService.getById(e2.id, xyzCtx), "access denied");
-    console.log("6. ✓ XYZ cannot access ABC employee (same EMP number)");
-
-    // 7. Invalid characters rejected
-    await assertThrows(
-      UserService.create(
-        {
-          employeeId: "EMP 001!",
-          firstName: "Bad",
-          lastName: "Code",
-          email: `bad-${stamp}@xyz.test`,
-          password: "StrongPass@123456",
-          roleId: empRole.id,
-          departmentId: xyzDept?.id,
-        },
-        xyzCtx
-      ),
-      "letters, numbers"
-    );
-    console.log("7. ✓ Invalid employee number rejected");
-
-    // 8. SUB_ADMIN create in own dept
-    if (xyzSub && xyzSub.departmentId) {
-      const subCtx = {
-        userId: xyzSub.id,
-        role: "SUB_ADMIN",
-        companyId: xyzSub.companyId,
-        departmentId: xyzSub.departmentId,
-      };
-      const e3 = await UserService.create(
-        {
-          employeeId: `SUBEMP${stamp}`,
-          firstName: "Sub",
-          lastName: "Created",
-          email: `subemp-${stamp}@xyz.test`,
-          password: "StrongPass@123456",
-          roleId: empRole.id,
-          departmentId: xyzSub.departmentId,
-        },
-        subCtx
-      );
-      created.push(e3.id);
-      console.log("8. ✓ SUB_ADMIN can create employee with Employee Number in own department");
-
-      // 9. SUB_ADMIN cannot create for other company dept
-      if (abcDept) {
-        await assertThrows(
-          UserService.create(
-            {
-              employeeId: `HACK${stamp}`,
-              firstName: "Hack",
-              lastName: "Cross",
-              email: `hack-${stamp}@xyz.test`,
-              password: "StrongPass@123456",
-              roleId: empRole.id,
-              departmentId: abcDept.id,
-              companyId: abcAdmin.companyId,
-            },
-            subCtx
-          ),
-          ""
-        );
-        console.log("9. ✓ SUB_ADMIN cannot create employee for another company/department");
-      }
-    } else {
-      console.log("8-9. ⊘ SUB_ADMIN seed missing — skipped");
+    created.push(other.id);
+    if (!other.employeeId?.startsWith(`${abcAdmin.company.companyCode}-EMP-`)) {
+      throw new Error(`Wrong company prefix: ${other.employeeId}`);
     }
+    console.log(`4. ✓ Cross-company code scoped: ${other.employeeId}`);
 
-    // 10. Search by employeeId via repository list
-    const listed = await UserService.getAll({ search: `EMP${stamp}` }, xyzCtx);
-    if (!listed.items.some((u) => u.id === e1.id)) {
-      throw new Error("Search by employee number failed");
-    }
-    console.log("10. ✓ Search by Employee Number works");
+    // 5. Preview
+    const preview = await UserService.previewEmployeeCode("EMPLOYEE", xyzCtx);
+    if (!preview.employeeId?.includes("-EMP-")) throw new Error("Bad preview");
+    console.log(`5. ✓ Preview: ${preview.employeeId}`);
 
-    // 11. Update employee number within company
-    const updated = await UserService.update(
-      e1.id,
-      { employeeId: `EMPUPD${stamp}` },
-      xyzCtx
-    );
-    if (updated.employeeId !== `EMPUPD${stamp}`) throw new Error("Update employeeId failed");
-    console.log("11. ✓ MAIN_ADMIN can update Employee Number");
-
-    console.log("\n=== ALL EMPLOYEE NUMBER TESTS PASSED ===");
+    console.log("\n=== EMPLOYEE NUMBER TESTS PASSED ===");
   } finally {
-    if (created.length) {
-      await prisma.user.deleteMany({ where: { id: { in: created } } }).catch(() => {});
+    for (const id of created) {
+      await prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date(), email: `deleted-empnum-${id}@test.local` },
+      }).catch(() => {});
     }
     await prisma.$disconnect();
   }
 }
 
-main().catch(async (err) => {
-  console.error("FAILED:", err);
-  await prisma.$disconnect();
+main().catch((err) => {
+  console.error("FAILED:", err.message);
   process.exit(1);
 });

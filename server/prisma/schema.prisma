@@ -183,11 +183,28 @@ model Company {
   auditLogs      AuditLog[]
   reports        Report[]
   onboarding     CompanyOnboarding?
+  userCodeSequences CompanyUserCodeSequence[]
 
   @@index([status])
   @@index([companyName])
   @@index([deletedAt])
   @@map("companies")
+}
+
+/** Per-company, per-role-prefix counters for concurrency-safe employee codes */
+model CompanyUserCodeSequence {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  rolePrefix String   @map("role_prefix") @db.VarChar(10)
+  nextValue  Int      @default(0) @map("next_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, rolePrefix])
+  @@index([companyId])
+  @@map("company_user_code_sequences")
 }
 
 model SubscriptionPlan {
@@ -310,6 +327,7 @@ model User {
   password     String       @db.VarChar(255)
   profileImage String?      @map("profile_image") @db.Text
   designation  String?      @db.VarChar(150)
+  joiningDate  DateTime?    @map("joining_date")
   status       EntityStatus @default(ACTIVE)
   lastLogin    DateTime?    @map("last_login")
   companyId    String?      @map("company_id") @db.Uuid

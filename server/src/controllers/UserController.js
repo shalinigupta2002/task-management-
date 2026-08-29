@@ -13,9 +13,35 @@ class UserController {
     return ApiResponse.paginated(res, result.items, result.meta);
   });
 
+  getManagedUsers = asyncHandler(async (req, res) => {
+    const result = await UserService.getManagedUsers(req.validatedQuery || req.query, req.user);
+    return ApiResponse.paginated(res, result.items, result.meta);
+  });
+
+  getMe = asyncHandler(async (req, res) => {
+    const user = await UserService.getMe(req.user);
+    return ApiResponse.success(res, user);
+  });
+
+  updateMe = asyncHandler(async (req, res) => {
+    const user = await UserService.updateMe(req.validatedBody || req.body, req.user);
+    return ApiResponse.success(res, user, "Profile updated successfully");
+  });
+
   createEmployee = asyncHandler(async (req, res) => {
     const user = await UserService.createEmployee(req.validatedBody || req.body, req.user);
     return ApiResponse.created(res, user, "Employee created successfully");
+  });
+
+  createSubAdmin = asyncHandler(async (req, res) => {
+    const user = await UserService.createSubAdmin(req.validatedBody || req.body, req.user);
+    return ApiResponse.created(res, user, "Sub Admin created successfully");
+  });
+
+  previewEmployeeCode = asyncHandler(async (req, res) => {
+    const roleName = req.validatedQuery?.roleName || req.query.roleName || "EMPLOYEE";
+    const preview = await UserService.previewEmployeeCode(roleName, req.user);
+    return ApiResponse.success(res, preview);
   });
 
   getById = asyncHandler(async (req, res) => {

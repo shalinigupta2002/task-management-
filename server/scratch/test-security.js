@@ -148,7 +148,7 @@ async function runTests() {
     await assertThrows(
       TaskService.getById(taskB.id, techSolutionsSubCtx.userId),
       ApiError,
-      "forbidden"
+      "access denied"
     );
     console.log("Success: TechSolutions Subadmin was blocked from viewing ApexCorp task.");
   } else {
@@ -161,7 +161,7 @@ async function runTests() {
     await assertThrows(
       TaskService.getById(taskB.id, techSolutionsCtx.userId),
       ApiError,
-      "forbidden"
+      "access denied"
     );
     console.log("Success: Employee/Admin from Company A blocked from ApexCorp task.");
   }
@@ -737,14 +737,26 @@ async function runTests() {
   }
   console.log(`Success: XYZ Subadmin loaded ${xyzFreqs.items.length} platform frequencies.`);
 
-  // --- TEST 51: XYZ Subadmin cannot manage ABC-specific frequency isolation (platform-global) ---
-  console.log("\nRunning Test 51: XYZ Subadmin cannot create frequencies (admin-only)...");
-  await assertThrows(
-    TaskFrequencyService.create({ frequencyName: `SubadminFreq${Date.now()}`, intervalDays: 1 }, xyzSubadmin.id),
-    ApiError,
-    "only admins"
+  // --- TEST 51: XYZ Subadmin can create frequencies & EMPLOYEE is blocked ---
+  console.log("\nRunning Test 51: XYZ Subadmin can create frequency & EMPLOYEE is blocked...");
+  const tempFreqName = `SubadminFreq${Date.now()}`;
+  const createdFreq = await TaskFrequencyService.create(
+    { frequencyName: tempFreqName, daysInterval: 1, numberOfDays: 30, description: "Test subadmin create" },
+    xyzSubadmin.id
   );
-  console.log("Success: Frequency catalog is platform-global; Subadmin read allowed, write blocked.");
+  if (!createdFreq || createdFreq.frequencyName !== tempFreqName) {
+    throw new Error("Test 51 failed: XYZ Subadmin could not create frequency.");
+  }
+
+  await assertThrows(
+    TaskFrequencyService.create({ frequencyName: `EmpFreq${Date.now()}`, daysInterval: 1, numberOfDays: 30 }, apexEmployee.id),
+    ApiError,
+    "permission to create task frequencies"
+  );
+
+  // Clean up
+  await prisma.taskFrequency.delete({ where: { id: createdFreq.id } });
+  console.log("Success: XYZ Subadmin can create frequency and EMPLOYEE is blocked.");
 
   // --- TEST 52: XYZ Subadmin can create an allowed XYZ task ---
   console.log("\nRunning Test 52: XYZ Subadmin can create an allowed XYZ task...");
@@ -887,7 +899,7 @@ async function runTests() {
   // --- TEST 58: XYZ Subadmin cannot delete ABC task ---
   console.log("\nRunning Test 58: XYZ Subadmin cannot delete ABC task...");
   if (abcTask) {
-    await assertThrows(TaskService.remove(abcTask.id, xyzSubadmin.id), ApiError, "cannot delete");
+    await assertThrows(TaskService.remove(abcTask.id, xyzSubadmin.id), ApiError, "access denied");
     console.log("Success: Subadmin blocked from deleting tasks.");
   } else {
     console.log("Skipping Test 58: No ABC task in seed.");

@@ -103,9 +103,20 @@ class TaskRepository {
     }
 
     if (query.assignedToId) {
-      where.assignments = {
+      const assigneeFilter = {
         some: { assignedToId: query.assignedToId, status: { not: "CANCELLED" } },
       };
+      // Do not overwrite an existing assignment scope (e.g. employee self-scope)
+      if (where.assignments) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : []),
+          { assignments: where.assignments },
+          { assignments: assigneeFilter },
+        ];
+        delete where.assignments;
+      } else {
+        where.assignments = assigneeFilter;
+      }
     }
 
     return where;
@@ -128,11 +139,11 @@ class TaskRepository {
     }
   }
 
-  async findById(id, tx = prisma) {
+  async findById(id, tx = prisma, options = {}) {
     try {
       return await tx.task.findFirst({
         where: { id, deletedAt: null },
-        include: taskDetailInclude,
+        include: options.lite ? taskInclude : taskDetailInclude,
       });
     } catch (error) {
       handlePrismaError(error);
@@ -144,25 +155,45 @@ class TaskRepository {
     return `TSK-${String(count + 1).padStart(4, "0")}`;
   }
 
-  async create(data, tx = prisma) {
+  async create(data, tx = prisma, options = {}) {
     try {
+      if (options.lite) {
+        return await tx.task.create({
+          data,
+          select: {
+            id: true,
+            title: true,
+            taskCode: true,
+            companyId: true,
+            departmentId: true,
+            approverId: true,
+          },
+        });
+      }
       return await tx.task.create({ data, include: taskDetailInclude });
     } catch (error) {
       handlePrismaError(error);
     }
   }
 
-  async update(id, data, tx = prisma) {
+  async update(id, data, tx = prisma, options = {}) {
     try {
+      if (options.lite) {
+        return await tx.task.update({
+          where: { id },
+          data,
+          select: { id: true },
+        });
+      }
       return await tx.task.update({ where: { id }, data, include: taskDetailInclude });
     } catch (error) {
       handlePrismaError(error);
     }
   }
 
-  async softDelete(id) {
+  async softDelete(id, tx = prisma) {
     try {
-      return await prisma.task.update({
+      return await tx.task.update({
         where: { id },
         data: { deletedAt: new Date(), status: "CANCELLED" },
       });
@@ -171,8 +202,14 @@ class TaskRepository {
     }
   }
 
-  async createAssignment(data, tx = prisma) {
+  async createAssignment(data, tx = prisma, options = {}) {
     try {
+      if (options.lite) {
+        return await tx.taskAssignment.create({
+          data,
+          select: { id: true, taskId: true, assignedToId: true },
+        });
+      }
       return await tx.taskAssignment.create({
         data,
         include: {

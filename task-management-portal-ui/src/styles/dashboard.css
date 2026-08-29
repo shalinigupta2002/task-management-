@@ -1,0 +1,21 @@
+.dashboard-container {
+    padding: 1.5rem;
+    background-color: #f9fafb;
+    min-height: calc(100vh - 4rem);
+  }
+  
+  .dark .dashboard-container {
+    background-color: #111827;
+  }
+  
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  
+  @media (min-width: 768px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
