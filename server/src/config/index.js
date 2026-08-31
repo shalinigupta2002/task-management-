@@ -6,6 +6,8 @@ const config = {
   env: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PORT || "8080", 10),
   databaseUrl: process.env.DATABASE_URL,
+  /** Neon direct (non-pooled) URL — used by Prisma migrate via schema directUrl */
+  databaseDirectUrl: process.env.DIRECT_URL,
   jwt: {
     secret: process.env.JWT_SECRET || "dev-secret-change-me",
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",

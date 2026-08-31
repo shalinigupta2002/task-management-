@@ -10,6 +10,7 @@ export function validateProductionEnv() {
 
   const missing = [];
   if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!process.env.DIRECT_URL) missing.push("DIRECT_URL");
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
   if (!process.env.CORS_ORIGIN) missing.push("CORS_ORIGIN");
 
