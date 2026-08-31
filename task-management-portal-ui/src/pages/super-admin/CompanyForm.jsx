@@ -9,7 +9,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import AutofixHighIcon from "@mui/icons-material/AutofixHigh";
+import AutofixHighIcon from "@mui/icons-material/AutoFixHigh";
 import SuperAdminLayout from "../../components/layouts/SuperAdminLayout";
 import { PageHeader, card, fieldSx } from "../../components/super-admin/shared";
 import companyService from "../../services/companyService";
