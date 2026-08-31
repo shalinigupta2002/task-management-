@@ -1,0 +1,9 @@
+{
+  "installCommand": "npm install --prefix task-management-portal-ui",
+  "buildCommand": "npm run build --prefix task-management-portal-ui",
+  "outputDirectory": "task-management-portal-ui/dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
