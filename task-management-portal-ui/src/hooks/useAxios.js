@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from './useAuth';
+import { API_BASE_URL } from '../constants/config';
 
-// Create a default axios instance (configure baseURL as needed or use environment variables)
+// Prefer the shared API instance from src/api/axios.js in app code.
+// This hook keeps the same production-safe base URL for any legacy callers.
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
 });
 
 export function useAxios() {

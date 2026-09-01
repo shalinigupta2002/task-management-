@@ -3,7 +3,8 @@ import { API_BASE_URL } from "../constants/config";
 
 /**
  * Shared Axios instance for backend integration.
- * Replace API_BASE_URL in constants/config.js when connecting to a real API.
+ * baseURL comes from VITE_API_BASE_URL (see constants/config.js).
+ * Endpoints are relative paths like `/v1/auth/login` → `${API_BASE_URL}/v1/auth/login`.
  */
 const api = axios.create({
   baseURL: API_BASE_URL,

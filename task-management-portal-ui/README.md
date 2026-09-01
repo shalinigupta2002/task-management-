@@ -110,7 +110,8 @@ In `src/constants/config.js`:
 
 ```js
 export const USE_MOCK_API = false;  // switch to real backend
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
+// Dev → localhost; production builds → Render API unless VITE_API_BASE_URL overrides
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8080/api" : "https://task-management-06db.onrender.com/api");
 ```
 
 Or set environment variable:
@@ -286,7 +287,7 @@ Use `ErrorState` shared component for consistent error UI inside pages.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_BASE_URL` | `http://localhost:8080/api` | Backend API base URL |
+| `VITE_API_BASE_URL` | Dev: `http://localhost:8080/api` · Prod build default: Render `/api` | Backend API base URL (must include `/api`) |
 
 ## License
 
