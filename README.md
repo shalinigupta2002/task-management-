@@ -125,9 +125,20 @@ Copy from examples and fill in real values locally.
 
 See `server/.env.example` for the full template.
 
-### Frontend
+### Frontend (`task-management-portal-ui`)
 
-Typically uses Vite env vars if configured (for example `VITE_API_BASE_URL`). Prefer a local `.env` file that is gitignored; do not commit secrets.
+| Variable | Local default | Production |
+|----------|---------------|------------|
+| `VITE_API_BASE_URL` | `http://localhost:8080/api` | `https://task-management-06db.onrender.com/api` |
+
+Set `VITE_API_BASE_URL` in Vercel → Project → Settings → Environment Variables (Production).  
+Vite only exposes vars prefixed with `VITE_`. Restart/redeploy after changing them.
+
+### Vercel (frontend)
+
+- **Root Directory** must be `task-management-portal-ui`
+- SPA fallback is configured in `task-management-portal-ui/vercel.json` (rewrites → `index.html`)
+- On Render, set `CORS_ORIGIN=https://assigner-tawny.vercel.app` (already required for browser login)
 
 ## Security notes
 

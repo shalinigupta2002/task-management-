@@ -12,11 +12,11 @@ const httpServer = createServer(app);
 initSocket(httpServer);
 
 const server = httpServer.listen(config.port, () => {
-  console.log(`TaskFlow API running on http://localhost:${config.port}`);
+  console.log(`TaskFlow API running on port ${config.port}`);
   console.log(`Environment: ${config.env}`);
   console.log(`Socket.IO enabled`);
   if (config.swagger.enabled) {
-    console.log(`Swagger docs: http://localhost:${config.port}/api/docs`);
+    console.log(`Swagger docs: /api/docs`);
   }
   if (config.scheduler.enabled) {
     ReminderSchedulerService.start();

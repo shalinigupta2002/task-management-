@@ -2,6 +2,11 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Ensure DIRECT_URL defaults to DATABASE_URL if omitted in env (e.g., Render)
+if (process.env.DATABASE_URL && !process.env.DIRECT_URL) {
+  process.env.DIRECT_URL = process.env.DATABASE_URL;
+}
+
 const config = {
   env: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PORT || "8080", 10),
@@ -13,7 +18,11 @@ const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   },
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: process.env.CORS_ORIGIN
+      ? (process.env.CORS_ORIGIN.includes(",")
+          ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim())
+          : process.env.CORS_ORIGIN.trim())
+      : "*",
     credentials: true,
   },
   swagger: {

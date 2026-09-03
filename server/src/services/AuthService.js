@@ -17,6 +17,8 @@ class AuthService {
     const user = await UserRepository.findByEmailWithPassword(normalizedEmail);
     if (!user) throw ApiError.unauthorized("Invalid email or password");
 
+    if (!user.password) throw ApiError.unauthorized("Invalid email or password");
+
     const valid = await comparePassword(password, user.password);
     if (!valid) throw ApiError.unauthorized("Invalid email or password");
 
@@ -24,13 +26,18 @@ class AuthService {
       throw ApiError.forbidden("Account is not active");
     }
 
+    const roleName = user.role?.name;
+    if (!roleName) {
+      throw ApiError.unauthorized("User has no assigned role");
+    }
+
     await UserRepository.updateLastLogin(user.id);
 
     const token = signToken({
       userId: user.id,
       email: user.email,
-      role: user.role.name,
-      companyId: user.companyId,
+      role: roleName,
+      companyId: user.companyId || null,
       companyCode: user.company?.companyCode || null,
     });
 
@@ -41,7 +48,7 @@ class AuthService {
 
     // Log login activity
     await logAudit(
-      { companyId: user.companyId, userId: user.id, role: user.role.name },
+      { companyId: user.companyId || null, userId: user.id, role: roleName },
       "LOGIN",
       "User",
       user.id,

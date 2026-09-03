@@ -1,14 +1,12 @@
 import { Prisma } from "@prisma/client";
 import ApiError from "./ApiError.js";
-import config from "../config/index.js";
+import { sanitizeForLog } from "./sanitize.js";
 
 function logPrismaError(error) {
-  if (config.env === "production") return;
-
   console.error("PRISMA ERROR", {
     name: error?.name,
     code: error?.code,
-    message: error?.message,
+    message: sanitizeForLog(error?.message),
     meta: error?.meta,
     modelName: error?.meta?.modelName,
   });

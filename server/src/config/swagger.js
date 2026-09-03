@@ -12,7 +12,7 @@ const options = {
       contact: { name: "TaskFlow API Support", email: "support@taskflow.com" },
     },
     servers: [
-      { url: `http://localhost:${config.port}/api/v1`, description: "Development" },
+      { url: "/api/v1", description: "Default API Server" },
     ],
     components: {
       securitySchemes: {
