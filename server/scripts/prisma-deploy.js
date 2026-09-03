@@ -2,6 +2,7 @@
  * Ensures Prisma CLI has DATABASE_URL + DIRECT_URL, then generate + migrate deploy.
  * Safe for Render builds. Never prints connection strings or credentials.
  */
+import "dotenv/config";
 import { spawnSync } from "node:child_process";
 
 function hostOf(url) {
