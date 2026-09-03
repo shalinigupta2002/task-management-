@@ -16,7 +16,13 @@ import { buildOccurrenceDates } from "../src/utils/taskRecurrence.js";
 
 dotenv.config();
 
-const prisma = new PrismaClient();
+// Prefer DIRECT_URL for seed interactive transactions.
+// Neon's pooled URL (pgbouncer) commonly closes interactive txs → Prisma P2028.
+const prisma = new PrismaClient(
+  process.env.DIRECT_URL
+    ? { datasources: { db: { url: process.env.DIRECT_URL } } }
+    : undefined
+);
 
 const DEV_PASSWORD_FALLBACK = "DevTest@2026!";
 const DEV_PASSWORD = process.env.SEED_DEV_PASSWORD || DEV_PASSWORD_FALLBACK;
@@ -225,79 +231,93 @@ async function createTestTaskDirect({
   const uniqueAssignees = [...new Set(assigneeIds.filter(Boolean))];
   const taskCode = await nextTaskCode(companyId);
 
-  return prisma.$transaction(async (tx) => {
-    const task = await tx.task.create({
-      data: {
-        taskCode,
-        title,
-        description: `${title} (development test seed)`,
-        priority: "MEDIUM",
-        status: "OPEN",
-        companyId,
-        departmentId,
-        categoryId,
-        frequencyId,
-        recurrenceType,
-        approverId: approverId || null,
-        startDate,
-        endDate,
-        dueDate: endDate,
-        createdById: creatorId,
-        updatedById: creatorId,
-      },
-    });
+  // Compute dates outside the transaction to keep the tx short.
+  const occurrenceDates = buildOccurrenceDates({
+    recurrenceType,
+    startDate,
+    endDate,
+    durationDays: null,
+    intervalDays: 1,
+  });
 
-    for (const assigneeId of uniqueAssignees) {
-      await tx.taskAssignment.create({
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.create({
         data: {
-          taskId: task.id,
-          assignedById: creatorId,
-          assignedToId: assigneeId,
-          status: "PENDING",
+          taskCode,
+          title,
+          description: `${title} (development test seed)`,
+          priority: "MEDIUM",
+          status: "OPEN",
+          companyId,
+          departmentId,
+          categoryId,
+          frequencyId,
+          recurrenceType,
+          approverId: approverId || null,
+          startDate,
+          endDate,
+          dueDate: endDate,
+          createdById: creatorId,
+          updatedById: creatorId,
         },
       });
-    }
 
-    const occurrenceDates = buildOccurrenceDates({
-      recurrenceType,
-      startDate,
-      endDate,
-      durationDays: null,
-      intervalDays: 1,
-    });
-
-    let seq = 0;
-    for (const date of occurrenceDates) {
-      seq += 1;
-      const occ = await tx.taskOccurrence.create({
-        data: {
-          taskId: task.id,
-          occurrenceDate: date,
-          sequenceNumber: seq,
-        },
-      });
-      for (const assigneeId of uniqueAssignees) {
-        await tx.taskOccurrenceAssignee.create({
-          data: {
-            occurrenceId: occ.id,
-            assigneeId,
-            status: "OPEN",
-          },
+      if (uniqueAssignees.length > 0) {
+        await tx.taskAssignment.createMany({
+          data: uniqueAssignees.map((assigneeId) => ({
+            taskId: task.id,
+            assignedById: creatorId,
+            assignedToId: assigneeId,
+            status: "PENDING",
+          })),
         });
       }
+
+      if (occurrenceDates.length > 0) {
+        await tx.taskOccurrence.createMany({
+          data: occurrenceDates.map((occurrenceDate, i) => ({
+            taskId: task.id,
+            occurrenceDate,
+            sequenceNumber: i + 1,
+          })),
+        });
+
+        const createdOccurrences = await tx.taskOccurrence.findMany({
+          where: { taskId: task.id },
+          select: { id: true },
+          orderBy: { sequenceNumber: "asc" },
+        });
+
+        if (uniqueAssignees.length > 0 && createdOccurrences.length > 0) {
+          await tx.taskOccurrenceAssignee.createMany({
+            data: createdOccurrences.flatMap((occurrence) =>
+              uniqueAssignees.map((assigneeId) => ({
+                occurrenceId: occurrence.id,
+                assigneeId,
+                status: "OPEN",
+              }))
+            ),
+          });
+        }
+      }
+
+      await tx.taskActivity.create({
+        data: {
+          taskId: task.id,
+          performedById: creatorId,
+          activityType: "TASK_CREATED",
+          description: `Task "${title}" created (test seed)`,
+        },
+      });
+
+      return task;
+    },
+    {
+      maxWait: 10_000,
+      timeout: 60_000,
     }
-
-    await tx.taskActivity.create({
-      data: {
-        taskId: task.id,
-        performedById: creatorId,
-        activityType: "TASK_CREATED",
-        description: `Task "${title}" created (test seed)`,
-      },
-    });
-
-    return task;
-  });
+  );
 }
 
 async function seedCompanyTasks(company, users, departments, categories, dailyFreq) {
@@ -354,6 +374,13 @@ async function seedCompanyTasks(company, users, departments, categories, dailyFr
 
 async function main() {
   console.log("=== TaskFlow TEST USER SEED (development/staging only) ===\n");
+
+  try {
+    const seedUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+    console.log("Seed DB host:", seedUrl ? new URL(seedUrl).hostname : "(missing)");
+  } catch {
+    console.log("Seed DB host: (unparseable)");
+  }
 
   if (!process.env.SEED_DEV_PASSWORD) {
     console.warn(

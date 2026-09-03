@@ -2,16 +2,11 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Ensure DIRECT_URL defaults to DATABASE_URL if omitted in env (e.g., Render)
-if (process.env.DATABASE_URL && !process.env.DIRECT_URL) {
-  process.env.DIRECT_URL = process.env.DATABASE_URL;
-}
-
 const config = {
   env: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PORT || "8080", 10),
   databaseUrl: process.env.DATABASE_URL,
-  /** Neon direct (non-pooled) URL — used by Prisma migrate via schema directUrl */
+  /** Neon direct (non-pooled) URL — required for Prisma migrate via schema directUrl */
   databaseDirectUrl: process.env.DIRECT_URL,
   jwt: {
     secret: process.env.JWT_SECRET || "dev-secret-change-me",
