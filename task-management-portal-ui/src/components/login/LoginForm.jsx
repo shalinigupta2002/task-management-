@@ -104,8 +104,14 @@ function LoginForm() {
         Login Role
       </Typography>
       <FormControl fullWidth sx={{ mb: 1.5 }}>
-        <Select name="role" value={loginData.role} onChange={handleChange} size="small"
-          sx={{ borderRadius: 2, bgcolor: "#F8FAFC", "& fieldset": { borderColor: "#E2E8F0" }, "&:hover fieldset": { borderColor: "#2563EB" }, "&.Mui-focused fieldset": { borderColor: "#2563EB" } }}>
+        <Select
+          name="role"
+          value={loginData.role}
+          onChange={handleChange}
+          size="small"
+          inputProps={{ "data-testid": "login-role" }}
+          sx={{ borderRadius: 2, bgcolor: "#F8FAFC", "& fieldset": { borderColor: "#E2E8F0" }, "&:hover fieldset": { borderColor: "#2563EB" }, "&.Mui-focused fieldset": { borderColor: "#2563EB" } }}
+        >
           <MenuItem value="SUPER_ADMIN">Super Admin</MenuItem>
           <MenuItem value="MAIN_ADMIN">Main Admin</MenuItem>
           <MenuItem value="SUB_ADMIN">Sub Admin</MenuItem>
@@ -113,7 +119,11 @@ function LoginForm() {
         </Select>
       </FormControl>
 
-      {error && <Alert severity="error" sx={{ mb: 1.5, borderRadius: 2, py: 0.25 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" data-testid="login-error" sx={{ mb: 1.5, borderRadius: 2, py: 0.25 }}>
+          {error}
+        </Alert>
+      )}
 
       <TextField
         fullWidth
@@ -125,6 +135,7 @@ function LoginForm() {
         value={loginData.email}
         onChange={handleChange}
         sx={{ ...inputSx, mb: 1.25 }}
+        inputProps={{ "data-testid": "login-email" }}
         InputProps={{ startAdornment: <InputAdornment position="start"><EmailOutlinedIcon sx={{ color: "#94A3B8", fontSize: 18 }} /></InputAdornment> }}
       />
 
@@ -138,6 +149,7 @@ function LoginForm() {
         value={loginData.password}
         onChange={handleChange}
         sx={{ ...inputSx, mb: 1 }}
+        inputProps={{ "data-testid": "login-password" }}
         InputProps={{
           startAdornment: <InputAdornment position="start"><LockOutlinedIcon sx={{ color: "#94A3B8", fontSize: 18 }} /></InputAdornment>,
           endAdornment: (
@@ -167,6 +179,7 @@ function LoginForm() {
         variant="contained"
         disableElevation
         disabled={loading}
+        data-testid="login-submit"
         startIcon={!loading && <LoginIcon sx={{ fontSize: 18 }} />}
         sx={{ height: 42, borderRadius: 2, textTransform: "none", fontSize: "0.9rem", fontWeight: 700, bgcolor: "#2563EB", "&:hover": { bgcolor: "#1D4ED8" } }}
       >
