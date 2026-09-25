@@ -1,0 +1,11 @@
+{
+  "name": "vercel-prefix-shim",
+  "private": true,
+  "description": "Shim so Vercel Root Directory + --prefix task-management-portal-ui does not 404. Dashboard install runs npm install --prefix task-management-portal-ui from the UI folder; this package redirects install/build to the real app one level up.",
+  "scripts": {
+    "postinstall": "npm install --prefix ..",
+    "build": "npm run build --prefix ..",
+    "dev": "npm run dev --prefix ..",
+    "preview": "npm run preview --prefix .."
+  }
+}
