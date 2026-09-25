@@ -24,28 +24,32 @@ async function assertThrows(promise, errorType, expectedMessageSegment = "") {
 async function runTests() {
   console.log("=== STARTING EMPLOYEE 'MY TASKS' FOCUSED AUDIT VERIFICATION ===");
 
-  // 1. Resolve seed data
-  const companyA = await prisma.company.findFirst({
-    where: { companyName: "TechSolutions Pvt Ltd" },
-  });
-  const apexAdmin = await prisma.user.findFirst({
-    where: { email: "amit.patel@greenleaf.com" },
-  });
-  const companyB = apexAdmin ? await prisma.company.findFirst({
-    where: { id: apexAdmin.companyId },
-  }) : null;
-  const superAdmin = await prisma.user.findFirst({
-    where: { email: "superadmin@taskflow.com" },
-  });
+  // Prefer local test-seed companies/users when present; fall back to legacy demo names.
+  let companyA = await prisma.company.findFirst({ where: { companyCode: "XYZ001" } });
+  if (!companyA) {
+    companyA = await prisma.company.findFirst({ where: { companyName: "TechSolutions Pvt Ltd" } });
+  }
+  let techSolutionsAdmin = await prisma.user.findFirst({ where: { email: "admin@xyz.test" } });
+  if (!techSolutionsAdmin) {
+    techSolutionsAdmin = await prisma.user.findFirst({ where: { email: "rajesh.kumar@techsolutions.com" } });
+  }
+  let apexAdmin = await prisma.user.findFirst({ where: { email: "admin@abc.test" } });
+  if (!apexAdmin) {
+    apexAdmin = await prisma.user.findFirst({ where: { email: "amit.patel@greenleaf.com" } });
+  }
+  const companyB = apexAdmin
+    ? await prisma.company.findFirst({ where: { id: apexAdmin.companyId } })
+    : await prisma.company.findFirst({ where: { companyCode: "ABC001" } });
+  let superAdmin = await prisma.user.findFirst({ where: { email: "superadmin@system.test" } });
+  if (!superAdmin) {
+    superAdmin = await prisma.user.findFirst({ where: { email: "superadmin@taskflow.com" } });
+  }
   const employeeRole = await prisma.role.findFirst({
     where: { name: "EMPLOYEE" },
   });
-  const techSolutionsAdmin = await prisma.user.findFirst({
-    where: { email: "rajesh.kumar@techsolutions.com" },
-  });
 
   if (!companyA || !companyB || !superAdmin || !employeeRole || !techSolutionsAdmin) {
-    console.error("Error: Seed data missing. Detailed states:", {
+    console.error("Error: Seed data missing. Run: npm run db:seed:test. States:", {
       companyA: !!companyA,
       companyB: !!companyB,
       superAdmin: !!superAdmin,
@@ -97,9 +101,35 @@ async function runTests() {
     }
     console.log("Success: Brand-new employee has zero tasks.");
 
-    // Create a task
-    const category = await prisma.taskCategory.findFirst({ where: { companyId: companyA.id, deletedAt: null } });
-    const frequency = await prisma.taskFrequency.findFirst({ where: { deletedAt: null } });
+    // Ensure category + platform frequency exist for company A (do not rely on demo seed)
+    let category = await prisma.taskCategory.findFirst({
+      where: { companyId: companyA.id, deletedAt: null },
+    });
+    if (!category) {
+      category = await prisma.taskCategory.create({
+        data: {
+          categoryName: `Audit Category ${randSuffix()}`,
+          categoryCode: `AUD${randSuffix().toUpperCase().slice(0, 4)}`,
+          companyId: companyA.id,
+          status: "ACTIVE",
+        },
+      });
+    }
+    let frequency = await prisma.taskFrequency.findFirst({
+      where: { deletedAt: null, OR: [{ companyId: null }, { companyId: companyA.id }] },
+    });
+    if (!frequency) {
+      frequency = await prisma.taskFrequency.create({
+        data: {
+          frequencyName: "Daily",
+          daysInterval: 1,
+          numberOfDays: 1,
+          description: "Audit test frequency",
+          companyId: null,
+          status: "ACTIVE",
+        },
+      });
+    }
     if (!category || !frequency) {
       throw new Error("Missing task category or frequency in company A.");
     }

@@ -34,11 +34,29 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error.response?.status;
-    const requestUrl = String(error.config?.url || "");
-    // Failed login/register must surface the API error — do not wipe session or hard-redirect.
-    const isAuthAttempt = /\/auth\/(login|register|forgot-password|reset-password)/i.test(requestUrl);
+    const original = error.config;
+    const requestUrl = String(original?.url || "");
+    const isAuthAttempt = /\/auth\/(login|register|forgot-password|reset-password|refresh)/i.test(requestUrl);
 
-    if (status === 401 && !isAuthAttempt) {
+    if (status === 401 && !isAuthAttempt && original && !original._retry) {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (refreshToken) {
+        original._retry = true;
+        try {
+          const refreshRes = await axios.post(`${API_BASE_URL}/v1/auth/refresh`, { refreshToken });
+          const data = refreshRes?.data?.data || refreshRes?.data;
+          if (data?.accessToken) {
+            localStorage.setItem("accessToken", data.accessToken);
+            if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+            original.headers = original.headers || {};
+            original.headers.Authorization = `Bearer ${data.accessToken}`;
+            return api(original);
+          }
+        } catch {
+          /* fall through to logout */
+        }
+      }
+
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");

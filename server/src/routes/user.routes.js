@@ -69,7 +69,12 @@ router.get(
   UserController.getManagedUsers
 );
 
-router.get("/", validate(userQuerySchema, "query"), UserController.getAll);
+router.get(
+  "/",
+  authorize(ROLES.SUPER_ADMIN, ROLES.MAIN_ADMIN, ROLES.SUB_ADMIN),
+  validate(userQuerySchema, "query"),
+  UserController.getAll
+);
 router.get("/:id", validate(idParamSchema, "params"), UserController.getById);
 router.post(
   "/",

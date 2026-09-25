@@ -34,15 +34,24 @@ export function initSocket(httpServer) {
     const { userId, email, role, companyId } = socket.user;
 
     socket.join(`user:${userId}`);
+    // Presence must stay company-scoped — never broadcast cross-tenant.
+    if (companyId) {
+      socket.join(`company:${companyId}`);
+    }
     await OnlineUserRepository.upsert(userId, socket.id, "ONLINE");
 
-    io.emit("user:connected", {
+    const presencePayload = {
       userId,
       email,
       role,
       companyId,
       status: "ONLINE",
-    });
+    };
+    if (companyId) {
+      io.to(`company:${companyId}`).emit("user:connected", presencePayload);
+    } else {
+      socket.emit("user:connected", presencePayload);
+    }
 
     const unreadMessages = await MessageRepository.countUnread(userId);
     socket.emit("message:unread-count", { unreadCount: unreadMessages });
@@ -61,32 +70,44 @@ export function initSocket(httpServer) {
       socket.leave(`conversation:${conversationId}`);
     });
 
-    socket.on("typing:start", ({ conversationId }) => {
-      socket.to(`conversation:${conversationId}`).emit("typing:start", {
-        conversationId,
-        userId,
-      });
+    socket.on("typing:start", async ({ conversationId }) => {
+      try {
+        await assertConversationMember(userId, conversationId);
+        socket.to(`conversation:${conversationId}`).emit("typing:start", {
+          conversationId,
+          userId,
+        });
+      } catch {
+        socket.emit("error", { message: "Cannot send typing indicator" });
+      }
     });
 
-    socket.on("typing:stop", ({ conversationId }) => {
-      socket.to(`conversation:${conversationId}`).emit("typing:stop", {
-        conversationId,
-        userId,
-      });
+    socket.on("typing:stop", async ({ conversationId }) => {
+      try {
+        await assertConversationMember(userId, conversationId);
+        socket.to(`conversation:${conversationId}`).emit("typing:stop", {
+          conversationId,
+          userId,
+        });
+      } catch {
+        /* ignore */
+      }
     });
 
     socket.on("status:update", async ({ status }) => {
       const valid = ["ONLINE", "OFFLINE", "AWAY"];
       if (!valid.includes(status)) return;
       await OnlineUserRepository.updateStatus(userId, status);
-      io.emit("user:status", { userId, status });
+      if (companyId) {
+        io.to(`company:${companyId}`).emit("user:status", { userId, status });
+      }
     });
 
     socket.on("disconnect", async () => {
       await OnlineUserRepository.removeBySocketId(socket.id);
       const stillOnline = await OnlineUserRepository.isUserOnline(userId);
-      if (!stillOnline) {
-        io.emit("user:disconnected", { userId, status: "OFFLINE" });
+      if (!stillOnline && companyId) {
+        io.to(`company:${companyId}`).emit("user:disconnected", { userId, status: "OFFLINE" });
       }
     });
   });

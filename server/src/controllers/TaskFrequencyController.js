@@ -4,17 +4,26 @@ import asyncHandler from "../utils/asyncHandler.js";
 
 class TaskFrequencyController {
   getAll = asyncHandler(async (req, res) => {
-    const result = await TaskFrequencyService.getAll(req.validatedQuery || req.query);
+    const result = await TaskFrequencyService.getAll(
+      req.validatedQuery || req.query,
+      req.user.userId
+    );
     return ApiResponse.paginated(res, result.items, result.meta);
   });
 
   getById = asyncHandler(async (req, res) => {
-    const frequency = await TaskFrequencyService.getById(req.validatedParams?.id || req.params.id);
+    const frequency = await TaskFrequencyService.getById(
+      req.validatedParams?.id || req.params.id,
+      req.user.userId
+    );
     return ApiResponse.success(res, frequency);
   });
 
   create = asyncHandler(async (req, res) => {
-    const frequency = await TaskFrequencyService.create(req.validatedBody || req.body, req.user.userId);
+    const frequency = await TaskFrequencyService.create(
+      req.validatedBody || req.body,
+      req.user.userId
+    );
     return ApiResponse.created(res, frequency, "Task frequency created successfully");
   });
 
@@ -28,7 +37,10 @@ class TaskFrequencyController {
   });
 
   remove = asyncHandler(async (req, res) => {
-    await TaskFrequencyService.remove(req.validatedParams?.id || req.params.id, req.user.userId);
+    await TaskFrequencyService.remove(
+      req.validatedParams?.id || req.params.id,
+      req.user.userId
+    );
     return ApiResponse.success(res, null, "Task frequency deleted successfully");
   });
 }

@@ -68,33 +68,50 @@ async function findLatestAudit(action, entityId) {
   });
 }
 
+async function resolveUserByEmails(emails) {
+  for (const email of emails) {
+    const user = await prisma.user.findFirst({
+      where: { email, deletedAt: null },
+      include: { role: true },
+    });
+    if (user) return user;
+  }
+  return null;
+}
+
 async function runTests() {
   console.log("=== STARTING SECURITY & MULTI-TENANCY VERIFICATION SUITE ===");
 
-  // 1. Resolve Users and Resources from database
-  const techSolutionsAdmin = await prisma.user.findFirst({
-    where: { email: "rajesh.kumar@techsolutions.com" },
-    include: { role: true },
-  });
-  const apexAdmin = await prisma.user.findFirst({
-    where: { email: "amit.patel@greenleaf.com" },
-    include: { role: true },
-  });
-  const techSolutionsSubadmin = await prisma.user.findFirst({
-    where: { email: "subadmin1@company1.com" },
-    include: { role: true },
-  });
-  const apexEmployee = await prisma.user.findFirst({
-    where: { email: "employee11@company2.com" },
-    include: { role: true },
-  });
-  const superAdminUser = await prisma.user.findFirst({
-    where: { email: "superadmin@taskflow.com" },
-    include: { role: true },
-  });
+  // Resolve users from either full demo seed OR local seed-test-users (xyz.test / abc.test).
+  // Does not require production ALLOW_DEMO_SEED.
+  const techSolutionsAdmin = await resolveUserByEmails([
+    "rajesh.kumar@techsolutions.com",
+    "admin@xyz.test",
+  ]);
+  const apexAdmin = await resolveUserByEmails([
+    "amit.patel@greenleaf.com",
+    "admin@abc.test",
+  ]);
+  const techSolutionsSubadmin = await resolveUserByEmails([
+    "subadmin1@company1.com",
+    "subadmin1@xyz.test",
+  ]);
+  const apexEmployee = await resolveUserByEmails([
+    "employee11@company2.com",
+    "employee@abc.test",
+  ]);
+  const superAdminUser = await resolveUserByEmails([
+    "superadmin@taskflow.com",
+    "superadmin@system.test",
+  ]);
 
   if (!techSolutionsAdmin || !apexAdmin || !techSolutionsSubadmin || !apexEmployee || !superAdminUser) {
-    console.error("Error: Seeded users not found in the database. Please seed the database first.");
+    console.error(
+      "Error: Required test users not found. For local testing run:\n" +
+        "  1) npm run db:seed:test   (idempotent; needs roles)\n" +
+        "  or npm run db:seed        (destructive; local/dev only)\n" +
+        "Do NOT enable ALLOW_DEMO_SEED in production."
+    );
     process.exit(1);
   }
 
@@ -1284,7 +1301,21 @@ async function runTests() {
   console.log("\n=== ALL 83 SECURITY AND MULTI-TENANCY VERIFICATIONS PASSED SUCCESSFULLY ===");
 }
 
-runTests().catch((err) => {
-  console.error("Test suite failed:", err);
-  process.exit(1);
-});
+runTests()
+  .then(async () => {
+    try {
+      await prisma.$disconnect();
+    } catch {
+      /* ignore */
+    }
+    process.exit(0);
+  })
+  .catch(async (err) => {
+    console.error("Test suite failed:", err);
+    try {
+      await prisma.$disconnect();
+    } catch {
+      /* ignore */
+    }
+    process.exit(1);
+  });

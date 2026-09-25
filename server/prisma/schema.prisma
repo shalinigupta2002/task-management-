@@ -180,6 +180,7 @@ model Company {
   users          User[]
   subscriptions  CompanySubscription[]
   taskCategories TaskCategory[]
+  taskFrequencies TaskFrequency[]
   tasks          Task[]
   conversations  Conversation[]
   auditLogs      AuditLog[]
@@ -332,6 +333,7 @@ model User {
   joiningDate  DateTime?    @map("joining_date")
   status       EntityStatus @default(ACTIVE)
   lastLogin    DateTime?    @map("last_login")
+  tokenVersion Int          @default(0) @map("token_version")
   companyId    String?      @map("company_id") @db.Uuid
   departmentId String?      @map("department_id") @db.Uuid
   roleId       String       @map("role_id") @db.Uuid
@@ -405,7 +407,9 @@ model TaskCategory {
 
 model TaskFrequency {
   id            String       @id @default(uuid()) @db.Uuid
-  frequencyName String       @unique @map("frequency_name") @db.VarChar(100)
+  /** null = platform/global master frequency; set = company-owned custom frequency */
+  companyId     String?      @map("company_id") @db.Uuid
+  frequencyName String       @map("frequency_name") @db.VarChar(100)
   daysInterval  Int          @map("days_interval")
   numberOfDays  Int          @map("number_of_days")
   description   String?      @db.Text
@@ -414,8 +418,11 @@ model TaskFrequency {
   updatedAt     DateTime     @updatedAt @map("updated_at")
   deletedAt     DateTime?    @map("deleted_at")
 
-  tasks Task[]
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tasks   Task[]
 
+  @@unique([companyId, frequencyName])
+  @@index([companyId])
   @@index([deletedAt])
   @@index([status])
   @@map("task_frequencies")

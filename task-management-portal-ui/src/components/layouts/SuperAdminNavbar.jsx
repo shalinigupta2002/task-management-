@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   AppBar, Avatar, Badge, Box, IconButton, Toolbar, Typography, Menu, MenuItem, Divider, ListItemIcon, InputBase,
@@ -9,7 +9,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PersonOutline from "@mui/icons-material/PersonOutline";
 import Logout from "@mui/icons-material/Logout";
 import { DRAWER_WIDTH } from "./SuperAdminSidebar";
-import { getNotifications } from "../../utils/superAdminStorage";
+import notificationService from "../../services/notificationService";
 
 const PAGE_TITLES = {
   "/super-admin/dashboard": "Dashboard",
@@ -38,9 +38,22 @@ function getPageTitle(pathname) {
 export default function SuperAdminNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [unread, setUnread] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
-  const unread = getNotifications().filter((n) => !n.read).length;
   const pageTitle = getPageTitle(location.pathname);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const result = await notificationService.getCount();
+        if (active) setUnread(result?.unreadCount ?? 0);
+      } catch {
+        if (active) setUnread(0);
+      }
+    })();
+    return () => { active = false; };
+  }, [location.pathname]);
 
   return (
     <AppBar position="sticky" elevation={0} sx={{
@@ -79,8 +92,7 @@ export default function SuperAdminNavbar() {
               localStorage.removeItem("user");
               navigate("/login");
             }}>
-              <ListItemIcon><Logout fontSize="small" sx={{ color: "#DC2626" }} /></ListItemIcon>
-              <Typography sx={{ color: "#DC2626", fontSize: "0.875rem" }}>Logout</Typography>
+              <ListItemIcon><Logout fontSize="small" /></ListItemIcon> Logout
             </MenuItem>
           </Menu>
         </Box>

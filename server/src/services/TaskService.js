@@ -78,11 +78,13 @@ class TaskService {
       delete q.companyId;
       delete q.departmentId;
       if (!ctx.companyId) throw ApiError.forbidden("Employee has no company context");
-      q.companyId = ctx.companyId;
-    } else {
-      if (!q.companyId && ctx.companyId && !isSuperAdmin(ctx)) q.companyId = ctx.companyId;
-      if (q.companyId) await assertCompanyScope(ctx, q.companyId);
+      // Dedicated lean query — generic findAll+includes was 6–25s on Neon and
+      // caused My Tasks to still be loading when UI checks ran.
+      return TaskRepository.findAllForEmployee(ctx.id, ctx.companyId, q);
     }
+
+    if (!q.companyId && ctx.companyId && !isSuperAdmin(ctx)) q.companyId = ctx.companyId;
+    if (q.companyId) await assertCompanyScope(ctx, q.companyId);
 
     const scope = this.buildScope(ctx);
     return TaskRepository.findAll(q, scope);
@@ -134,6 +136,12 @@ class TaskService {
 
       if (assigneeIds.length === 0) {
         throw ApiError.badRequest("At least one assignee is required");
+      }
+
+      // Validate assignees/approver BEFORE creating the task so tenancy
+      // failures are never masked by later constraint errors (e.g. task_code).
+      for (const assigneeId of assigneeIds) {
+        await assertAssigneeInScope(ctx, assigneeId, data.companyId);
       }
 
       if (approverId) {
@@ -209,6 +217,7 @@ class TaskService {
 
       let createdTaskId;
       let createdTaskTitle;
+      let createdTaskLite;
 
       console.log("[TASK CREATE] Starting Prisma transaction");
       const txStarted = Date.now();
@@ -232,6 +241,7 @@ class TaskService {
 
         createdTaskId = task.id;
         createdTaskTitle = task.title;
+        createdTaskLite = task;
         console.log("[TASK CREATE] Task created:", task.id, `(${Date.now() - step}ms)`);
 
         step = Date.now();
@@ -240,22 +250,16 @@ class TaskService {
 
         console.log("[TASK CREATE] Creating assignees");
         for (const assigneeId of assigneeIds) {
-          // Pre-validated assignees; create assignment rows without nested NotificationService
-          // (global prisma inside interactive tx deadlocks the Neon pooler).
-          await assertAssigneeInScope(ctx, assigneeId, data.companyId, tx);
+          // Assignees already validated above; create assignment rows without nested
+          // NotificationService (global prisma inside interactive tx deadlocks Neon).
+          // Skip per-assignee activity rows here — ASSIGN_TASK audit covers assignment;
+          // extra activity writes were adding multi-second Neon latency per assignee.
           await TaskRepository.createAssignment({
             taskId: task.id,
             assignedById: ctx.id,
             assignedToId: assigneeId,
             status: "PENDING",
           }, tx, { lite: true });
-          await logActivity(
-            task.id,
-            ctx.id,
-            ACTIVITY_TYPE.TASK_ASSIGNED,
-            `Task assigned to user ${assigneeId}`,
-            tx
-          );
         }
         await TaskRepository.update(task.id, { updatedById: ctx.id }, tx, { lite: true });
         console.log("[TASK CREATE] Assignees created", `(${Date.now() - step}ms)`);
@@ -290,28 +294,41 @@ class TaskService {
       });
       console.log("[TASK CREATE] Transaction committed", `(${Date.now() - txStarted}ms)`);
 
-      // Notifications must run AFTER the transaction commits — they use global prisma.
-      console.log("[TASK CREATE] Creating notifications");
-      for (const assigneeId of assigneeIds) {
-        try {
-          await NotificationService.create({
-            userId: assigneeId,
-            title: "New task assigned",
-            message: `You have been assigned: ${createdTaskTitle}`,
-            type: "TASK_ASSIGNED",
-            priority: "MEDIUM",
-            referenceType: "TASK",
-            referenceId: createdTaskId,
-          }, "taskReminder", true);
-        } catch (notifyErr) {
-          console.error("[TASK CREATE] Notification failed for", assigneeId, notifyErr?.message || notifyErr);
-        }
-      }
-      console.log("[TASK CREATE] Notifications done");
+      // Fire notifications AFTER commit, but do not block the HTTP 201 response.
+      // Awaiting Neon notification writes here previously made Playwright/UI create
+      // appear to hang even though the task + assignments were already persisted.
+      Promise.all(
+        assigneeIds.map((assigneeId) =>
+          NotificationService.create(
+            {
+              userId: assigneeId,
+              title: "New task assigned",
+              message: `You have been assigned: ${createdTaskTitle}`,
+              type: "TASK_ASSIGNED",
+              priority: "MEDIUM",
+              referenceType: "TASK",
+              referenceId: createdTaskId,
+            },
+            "taskReminder",
+            true
+          ).catch((notifyErr) => {
+            console.error(
+              "[TASK CREATE] Notification failed for",
+              assigneeId,
+              notifyErr?.message || notifyErr
+            );
+          })
+        )
+      ).catch(() => {});
 
       console.log("[TASK CREATE] Sending response");
-      // Avoid reloading every occurrence graph on create response (slow on remote Neon).
-      return TaskRepository.findById(createdTaskId, prisma, { lite: true });
+      // Return the lite row from the transaction — avoid a post-commit reload.
+      return (
+        createdTaskLite || {
+          id: createdTaskId,
+          title: createdTaskTitle,
+        }
+      );
     } catch (error) {
       console.error("[TASK CREATE] Failed:", error?.message || error);
       throw error;

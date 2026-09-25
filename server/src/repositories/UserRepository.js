@@ -103,6 +103,19 @@ class UserRepository extends BaseRepository {
       console.error("[UserRepository.updateLastLogin Error]", sanitizeForLog(error?.message || error));
     }
   }
+
+  /** Bump on logout so previously issued refresh tokens fail `tv` checks. */
+  async incrementTokenVersion(id) {
+    try {
+      return await this.client.update({
+        where: { id },
+        data: { tokenVersion: { increment: 1 } },
+        select: { id: true, tokenVersion: true },
+      });
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
 }
 
 export default new UserRepository();

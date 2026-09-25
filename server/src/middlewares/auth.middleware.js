@@ -1,5 +1,5 @@
 import ApiError from "../utils/ApiError.js";
-import { verifyToken } from "../utils/jwt.js";
+import { verifyAccessToken } from "../utils/jwt.js";
 
 export function authenticate(req, _res, next) {
   const header = req.headers.authorization;
@@ -10,7 +10,7 @@ export function authenticate(req, _res, next) {
   }
 
   try {
-    const decoded = verifyToken(token);
+    const decoded = verifyAccessToken(token);
     req.user = decoded;
 
     if (decoded && decoded.role !== "SUPER_ADMIN") {

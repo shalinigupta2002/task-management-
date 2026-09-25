@@ -47,7 +47,7 @@ class TaskOccurrenceService {
       if (query.assigneeId) filters.assigneeId = query.assigneeId;
       else delete filters.assigneeId;
 
-      if (isSubAdmin(ctx) && !query.companyId) {
+      if (isSubAdmin(ctx)) {
         filters.departmentId = ctx.departmentId;
       }
       if (ctx.companyId && !isSuperAdmin(ctx)) {

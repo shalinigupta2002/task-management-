@@ -1,9 +1,9 @@
-import {
-  DEFAULT_COMPANIES,
-  DEFAULT_AUDIT_LOGS,
-  DEFAULT_NOTIFICATIONS,
-  GLOBAL_SETTINGS_DEFAULT,
-} from "../data/superAdminData";
+/**
+ * Legacy Super Admin localStorage helpers.
+ * Production Super Admin pages use API services only.
+ * These helpers return empty data and clear stale demo keys so refresh
+ * cannot resurrect mock companies/plans/audit/notifications.
+ */
 
 export {
   getPlans,
@@ -19,52 +19,57 @@ export {
 } from "./planStorage";
 
 import { createPlan } from "./planStorage";
+import { STORAGE_KEYS } from "../constants/storageKeys";
 
 const KEYS = {
-  companies: "sa_companies",
-  messages: "sa_messages",
+  companies: STORAGE_KEYS.companies,
+  messages: STORAGE_KEYS.messages,
   auditLogs: "sa_auditLogs",
-  notifications: "sa_notifications",
+  notifications: STORAGE_KEYS.notifications,
   globalSettings: "sa_globalSettings",
+  // Legacy aliases that may still exist in older browsers
+  legacyAuditLogs: "sa_audit_logs",
+  legacyGlobalSettings: "sa_global_settings",
+  legacyCompanies: "tm_companies",
 };
 
-function load(key, fallback) {
+function clearKey(key) {
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    localStorage.removeItem(key);
   } catch {
-    return fallback;
+    /* ignore */
   }
 }
 
-function save(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
+function clearAllDemoKeys() {
+  Object.values(KEYS).forEach(clearKey);
 }
 
 export function getCompanies() {
-  return load(KEYS.companies, DEFAULT_COMPANIES);
+  clearKey(KEYS.companies);
+  clearKey(KEYS.legacyCompanies);
+  return [];
 }
 
-export function setCompanies(companies) {
-  save(KEYS.companies, companies);
+export function setCompanies() {
+  clearKey(KEYS.companies);
+  clearKey(KEYS.legacyCompanies);
 }
 
-export function getCompanyById(id) {
-  return getCompanies().find((c) => c.id === id) || null;
+export function getCompanyById() {
+  return null;
 }
 
-export function updateCompany(id, updates) {
-  const companies = getCompanies().map((c) => (c.id === id ? { ...c, ...updates } : c));
-  setCompanies(companies);
-  return companies.find((c) => c.id === id);
+export function updateCompany() {
+  return null;
 }
 
-export function deleteCompany(id) {
-  setCompanies(getCompanies().filter((c) => c.id !== id));
+export function deleteCompany() {
+  clearKey(KEYS.companies);
 }
 
-export function addCompany(company) {
-  setCompanies([...getCompanies(), company]);
+export function addCompany() {
+  clearKey(KEYS.companies);
 }
 
 /** Backward-compatible alias for createPlan. */
@@ -73,36 +78,42 @@ export function addPlan(plan) {
 }
 
 export function getMessages() {
-  // Deprecated: Super Admin Messages uses conversationService / messageService.
-  // Keep empty to avoid resurrecting localStorage mock inbox data.
-  try {
-    localStorage.removeItem(KEYS.messages);
-  } catch {
-    /* ignore */
-  }
+  clearKey(KEYS.messages);
   return [];
 }
 
 export function getAuditLogs() {
-  return load(KEYS.auditLogs, DEFAULT_AUDIT_LOGS);
+  clearKey(KEYS.auditLogs);
+  clearKey(KEYS.legacyAuditLogs);
+  return [];
 }
 
-export function addAuditLog(entry) {
-  save(KEYS.auditLogs, [entry, ...getAuditLogs()]);
+export function addAuditLog() {
+  clearKey(KEYS.auditLogs);
+  clearKey(KEYS.legacyAuditLogs);
 }
 
 export function getNotifications() {
-  return load(KEYS.notifications, DEFAULT_NOTIFICATIONS);
+  clearKey(KEYS.notifications);
+  return [];
 }
 
-export function setNotifications(list) {
-  save(KEYS.notifications, list);
+export function setNotifications() {
+  clearKey(KEYS.notifications);
 }
 
 export function getGlobalSettings() {
-  return load(KEYS.globalSettings, GLOBAL_SETTINGS_DEFAULT);
+  clearKey(KEYS.globalSettings);
+  clearKey(KEYS.legacyGlobalSettings);
+  return {};
 }
 
-export function setGlobalSettings(settings) {
-  save(KEYS.globalSettings, settings);
+export function setGlobalSettings() {
+  clearKey(KEYS.globalSettings);
+  clearKey(KEYS.legacyGlobalSettings);
+}
+
+/** One-shot cleanup for any lingering Super Admin demo keys. */
+export function purgeSuperAdminDemoStorage() {
+  clearAllDemoKeys();
 }

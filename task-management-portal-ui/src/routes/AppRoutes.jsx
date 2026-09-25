@@ -116,11 +116,15 @@ const EmployeeActivityPage = safeLazy(() => import("../pages/employee/EmployeeAc
 const EmployeeProfilePage = safeLazy(() => import("../pages/employee/EmployeeProfilePage"));
 
 /**
- * Route Guard
+ * Route Guard — UI only. Backend JWT remains the security authority.
+ * Require a real accessToken (not just forgeable isAuthenticated flag).
  */
+function hasSession() {
+  return Boolean(localStorage.getItem("accessToken"));
+}
+
 function ProtectedRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return hasSession() ? children : <Navigate to="/login" replace />;
 }
 
 ProtectedRoute.propTypes = {
@@ -128,9 +132,8 @@ ProtectedRoute.propTypes = {
 };
 
 function SuperAdminRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  if (!hasSession()) return <Navigate to="/login" replace />;
   const role = localStorage.getItem("userRole");
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (role !== "SUPER_ADMIN") return <Navigate to="/dashboard" replace />;
   return children;
 }
@@ -140,9 +143,8 @@ SuperAdminRoute.propTypes = {
 };
 
 function SubAdminRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  if (!hasSession()) return <Navigate to="/login" replace />;
   const role = localStorage.getItem("userRole");
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (role !== "SUB_ADMIN") return <Navigate to="/dashboard" replace />;
   return children;
 }
@@ -152,9 +154,8 @@ SubAdminRoute.propTypes = {
 };
 
 function AdminRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  if (!hasSession()) return <Navigate to="/login" replace />;
   const role = localStorage.getItem("userRole");
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (role === "SUB_ADMIN") return <Navigate to="/sub-admin/dashboard" replace />;
   if (role === "SUPER_ADMIN") return <Navigate to="/super-admin/dashboard" replace />;
   if (role === "EMPLOYEE") return <Navigate to="/employee/dashboard" replace />;
@@ -166,9 +167,8 @@ AdminRoute.propTypes = {
 };
 
 function EmployeeRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  if (!hasSession()) return <Navigate to="/login" replace />;
   const role = localStorage.getItem("userRole");
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (role !== "EMPLOYEE") {
     if (role === "SUPER_ADMIN") return <Navigate to="/super-admin/dashboard" replace />;
     if (role === "SUB_ADMIN") return <Navigate to="/sub-admin/dashboard" replace />;

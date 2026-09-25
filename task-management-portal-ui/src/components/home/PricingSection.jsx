@@ -1,12 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Box, Typography, Button, Chip } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import CheckIcon from "@mui/icons-material/Check";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { MUTED, PRIMARY } from "./landingStyles";
-import useLandingPlans from "../../hooks/useLandingPlans";
-import { filterPlansByBilling, formatPlanPrice } from "../../utils/landingPlans";
+import {
+  fetchLandingPlans,
+  filterPlansByBilling,
+  formatPlanPrice,
+} from "../../utils/landingPlans";
 
 const TITLE_COLOR = "#1A2B4B";
 const GREEN = "#10B981";
@@ -29,12 +32,13 @@ function BillingToggle({ yearly, maxSavingsPercent, onMonthly, onYearly }) {
       }}>
         <Box
           onClick={onMonthly}
+          role="button"
+          aria-pressed={!yearly}
           sx={{
             px: 3, py: 1, borderRadius: 50, cursor: "pointer", userSelect: "none",
             fontWeight: 600, fontSize: "0.875rem",
-            color: !yearly ? PRIMARY : MUTED,
-            bgcolor: !yearly ? "#FFFFFF" : "transparent",
-            border: !yearly ? `2px solid ${PRIMARY}` : "2px solid transparent",
+            color: !yearly ? "#FFFFFF" : MUTED,
+            bgcolor: !yearly ? PRIMARY : "transparent",
             transition: "all 0.2s",
           }}
         >
@@ -42,23 +46,12 @@ function BillingToggle({ yearly, maxSavingsPercent, onMonthly, onYearly }) {
         </Box>
         <Box
           onClick={onYearly}
-          sx={{
-            px: 3, py: 1, borderRadius: 50, cursor: "pointer", userSelect: "none",
-            fontWeight: 600, fontSize: "0.875rem",
-            color: yearly ? PRIMARY : MUTED,
-            bgcolor: "#FFFFFF",
-            border: yearly ? `2px solid ${PRIMARY}` : "2px solid transparent",
-            transition: "all 0.2s",
-          }}
-        >
-          Yearly
-        </Box>
-        <Box
-          onClick={onYearly}
+          role="button"
+          aria-pressed={yearly}
           sx={{
             px: 2.5, py: 1, borderRadius: 50, cursor: "pointer", userSelect: "none",
             fontWeight: 600, fontSize: "0.8rem", whiteSpace: "nowrap",
-            bgcolor: yearly ? PRIMARY : "#E2E8F0",
+            bgcolor: yearly ? PRIMARY : "transparent",
             color: yearly ? "#FFFFFF" : MUTED,
             transition: "all 0.2s",
           }}
@@ -72,8 +65,32 @@ function BillingToggle({ yearly, maxSavingsPercent, onMonthly, onYearly }) {
 
 export default function PricingSection() {
   const [yearly, setYearly] = useState(false);
-  const { plans, loading } = useLandingPlans();
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Single mount fetch. Always clear loading in finally (even if cancelled) so
+  // React Strict Mode cannot leave /pricing stuck on "Loading...".
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await fetchLandingPlans();
+        if (!cancelled) setPlans(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.warn("PricingSection plans load failed", err);
+        if (!cancelled) setPlans([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visiblePlans = useMemo(() => filterPlansByBilling(plans, yearly), [plans, yearly]);
   const maxSavingsPercent = useMemo(
@@ -111,7 +128,7 @@ export default function PricingSection() {
             alignItems: "stretch",
           }}
         >
-          {loading ? (
+          {loading && plans.length === 0 ? (
             <Box sx={{ gridColumn: "1 / -1", display: "flex", justifyContent: "center", py: 8 }}>
               <Typography sx={{ color: MUTED, fontSize: "1rem" }}>Loading active subscription plans...</Typography>
             </Box>

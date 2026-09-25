@@ -51,6 +51,15 @@ const ROLES = [
 ];
 
 async function main() {
+  if (
+    process.env.NODE_ENV === "production"
+    && process.env.ALLOW_DESTRUCTIVE_SEED !== "true"
+  ) {
+    throw new Error(
+      "Refusing to run destructive seed in production. Set ALLOW_DESTRUCTIVE_SEED=true only if intentional."
+    );
+  }
+
   console.log("Seeding TaskFlow database...\n");
 
   // Clean existing data (order matters for FK constraints)

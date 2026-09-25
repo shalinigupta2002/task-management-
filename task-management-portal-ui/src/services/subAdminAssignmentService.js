@@ -1,37 +1,17 @@
-import { getSubAdminProfile, setSubAdminProfile, updateSubAdmin } from "../utils/mainAdminStorage";
-
 /**
  * Removes an employee from the logged-in Sub Admin's assignment list only.
  *
  * Backend note: No dedicated Sub Admin ↔ Employee assignment removal API exists yet.
- * This does NOT call DELETE /user/:id and does NOT remove the employee from the company.
+ * This does NOT call DELETE /users/:id and must not be treated as company user deletion.
+ * Prefer department-scoped user APIs for production assignment management.
  */
-export async function removeEmployeeAssignment(employeeId) {
-  if (!employeeId) {
-    throw new Error("Employee id is required");
-  }
-
-  const profile = getSubAdminProfile();
-  const assignedEmployees = profile.assignedEmployees || [];
-
-  if (!assignedEmployees.includes(employeeId)) {
-    return profile;
-  }
-
-  const updatedProfile = {
-    ...profile,
-    assignedEmployees: assignedEmployees.filter((id) => id !== employeeId),
-  };
-
-  setSubAdminProfile(updatedProfile);
-
-  if (profile.id) {
-    updateSubAdmin(profile.id, { assignedEmployees: updatedProfile.assignedEmployees });
-  }
-
-  return updatedProfile;
+export async function removeEmployeeAssignment(_employeeId) {
+  throw new Error(
+    "Sub Admin assignment removal is not available via API yet. Use department-scoped user management instead of localStorage."
+  );
 }
 
 export function hasAssignmentRemovalApi() {
   return false;
 }
+

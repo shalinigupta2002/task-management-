@@ -39,6 +39,15 @@ class PaymentProvider {
       };
     }
 
+    if (
+      process.env.NODE_ENV === "production"
+      && process.env.ALLOW_INTERNAL_PAYMENT !== "true"
+    ) {
+      throw ApiError.badRequest(
+        "INTERNAL payment provider is disabled in production. Configure Razorpay keys."
+      );
+    }
+
     const payload = `${orderId}|${amountInPaise}|${currency}`;
     const signature = crypto.createHmac("sha256", this.secret).update(payload).digest("hex");
     return {

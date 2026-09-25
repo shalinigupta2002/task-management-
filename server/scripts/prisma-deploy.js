@@ -57,12 +57,18 @@ runPrisma(["generate"]);
 runPrisma(["migrate", "deploy"]);
 console.log("Prisma generate + migrate deploy completed.");
 
-// Fresh/empty DB only: create demo login users (skipped when any user exists).
-const seedResult = spawnSync(process.execPath, ["./scripts/ensure-demo-seed.js"], {
-  stdio: "inherit",
-  env: process.env,
-  shell: false,
-});
-if (seedResult.status !== 0) {
-  process.exit(seedResult.status ?? 1);
+// Demo seed is opt-in only. Never auto-seed on production/empty DB during deploy.
+if (process.env.ALLOW_DEMO_SEED === "true") {
+  const seedResult = spawnSync(process.execPath, ["./scripts/ensure-demo-seed.js"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: false,
+  });
+  if (seedResult.status !== 0) {
+    process.exit(seedResult.status ?? 1);
+  }
+} else {
+  console.log(
+    "prisma-deploy: skipped ensure-demo-seed (set ALLOW_DEMO_SEED=true only for local/staging)."
+  );
 }

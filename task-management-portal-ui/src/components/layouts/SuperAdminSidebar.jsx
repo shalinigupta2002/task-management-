@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Drawer, Toolbar, List, ListItemButton, ListItemIcon, ListItemText, Box, Divider, Typography, Avatar, Collapse, Badge,
@@ -6,7 +7,7 @@ import {
   Dashboard, Business, AddBusiness, ListAlt, CardMembership, Add as AddIcon,
   Assessment, NotificationsNone, Chat, History, Settings, Logout, AssignmentTurnedIn, ExpandLess, ExpandMore,
 } from "@mui/icons-material";
-import { getNotifications } from "../../utils/superAdminStorage";
+import notificationService from "../../services/notificationService";
 
 export const DRAWER_WIDTH = 260;
 
@@ -29,7 +30,7 @@ const MENUS = [
     ],
   },
   { title: "Reports", icon: Assessment, path: "/super-admin/reports" },
-  { title: "Notifications", icon: NotificationsNone, path: "/super-admin/notifications", badgeFromStorage: true },
+  { title: "Notifications", icon: NotificationsNone, path: "/super-admin/notifications", badgeFromApi: true },
   { title: "Messages", icon: Chat, path: "/super-admin/messages" },
   { title: "Audit Logs", icon: History, path: "/super-admin/audit-logs" },
   { title: "Global Settings", icon: Settings, path: "/super-admin/settings" },
@@ -53,7 +54,20 @@ function isMenuSelected(menu, pathname) {
 export default function SuperAdminSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const unreadNotifications = getNotifications().filter((n) => !n.read).length;
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const result = await notificationService.getCount();
+        if (active) setUnreadNotifications(result?.unreadCount ?? 0);
+      } catch {
+        if (active) setUnreadNotifications(0);
+      }
+    })();
+    return () => { active = false; };
+  }, [location.pathname]);
 
   return (
     <Drawer variant="permanent" sx={{
@@ -95,7 +109,7 @@ export default function SuperAdminSidebar() {
                   }}
                 >
                   <ListItemIcon sx={{ color: "inherit", minWidth: 34 }}>
-                    {menu.badgeFromStorage && unreadNotifications > 0 ? (
+                    {menu.badgeFromApi && unreadNotifications > 0 ? (
                       <Badge badgeContent={unreadNotifications} color="error" sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", minWidth: 16, height: 16 } }}>
                         <Icon sx={{ fontSize: 20 }} />
                       </Badge>

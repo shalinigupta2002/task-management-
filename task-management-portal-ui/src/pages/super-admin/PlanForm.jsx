@@ -6,7 +6,6 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SuperAdminLayout from "../../components/layouts/SuperAdminLayout";
 import { PageHeader, card, fieldSx } from "../../components/super-admin/shared";
-import { addAuditLog } from "../../utils/superAdminStorage";
 import { planService } from "../../services";
 import toast from "../../utils/toast";
 
@@ -111,14 +110,7 @@ export default function PlanForm() {
         await planService.create(payload);
         toast.success("Plan created successfully");
       }
-      addAuditLog({
-        id: `al-${Date.now()}`,
-        action: isEdit ? "Plan Updated" : "Plan Created",
-        entity: form.name,
-        user: "Super Admin",
-        date: new Date().toLocaleString(),
-        ip: "192.168.1.1",
-      });
+      // Audit trail is recorded server-side on plan mutations — do not write localStorage demo logs.
       navigate("/super-admin/plans");
     } catch (err) {
       toast.error(err.message || "Failed to save plan");

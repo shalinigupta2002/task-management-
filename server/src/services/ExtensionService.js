@@ -15,6 +15,9 @@ class ExtensionService {
     const ctx = await loadUserContext(userId);
     const q = { ...query };
     if (!q.companyId && ctx.companyId) q.companyId = ctx.companyId;
+    if (isEmployee(ctx)) {
+      q.requestedById = ctx.id;
+    }
     return ExtensionRepository.findAll(q);
   }
 

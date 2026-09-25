@@ -2,12 +2,28 @@
  * If the database has zero users (fresh Neon / post-migrate empty DB),
  * ensure roles exist and run the idempotent demo seed.
  *
+ * Opt-in only: requires ALLOW_DEMO_SEED=true.
  * Never runs prisma/seed.js (that script deletes all data).
  * Never prints credentials.
+ * Never runs automatically in production.
  */
 import "dotenv/config";
 import { spawnSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
+
+if (process.env.ALLOW_DEMO_SEED !== "true") {
+  console.error(
+    "ensure-demo-seed: blocked — set ALLOW_DEMO_SEED=true only for local/staging empty DBs."
+  );
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED_IN_PRODUCTION !== "true") {
+  console.error(
+    "ensure-demo-seed: blocked in production (set ALLOW_DEMO_SEED_IN_PRODUCTION=true only if intentional)."
+  );
+  process.exit(1);
+}
 
 const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 if (!dbUrl) {

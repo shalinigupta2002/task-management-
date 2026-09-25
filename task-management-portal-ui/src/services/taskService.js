@@ -8,16 +8,58 @@ import { DEFAULT_TASKS } from "../data/employeeData";
 
 const mock = createMockCrudService(STORAGE_KEYS.tasks, DEFAULT_TASKS, "TSK");
 
+/** In-flight dedupe only — do NOT cache list results. A 20s result cache hid
+ * newly assigned tasks on Employee My Tasks after admin create (Founder E2E). */
+let listInflight = null;
+
+function invalidateTaskListCache() {
+  listInflight = null;
+}
+
 const apiCrud = {
-  getAll: async (params) => unwrapList(await api.get(ENDPOINTS.tasks, { params })),
+  getAll: async (params) => {
+    const key = JSON.stringify(params || {});
+    if (listInflight && listInflight.key === key) {
+      return listInflight.promise;
+    }
+    // unwrapList is synchronous — do not call .then on its return value.
+    const promise = (async () => {
+      try {
+        const data = unwrapList(await api.get(ENDPOINTS.tasks, { params }));
+        return data;
+      } finally {
+        listInflight = null;
+      }
+    })();
+    listInflight = { key, promise };
+    return promise;
+  },
   getById: async (id) => unwrapData(await api.get(`${ENDPOINTS.tasks}/${id}`)),
-  create: async (data) => unwrapData(await api.post(ENDPOINTS.tasks, data)),
-  update: async (id, data) => unwrapData(await api.patch(`${ENDPOINTS.tasks}/${id}`, data)),
-  delete: async (id) => unwrapData(await api.delete(`${ENDPOINTS.tasks}/${id}`)),
+  create: async (data) => {
+    invalidateTaskListCache();
+    return unwrapData(await api.post(ENDPOINTS.tasks, data));
+  },
+  update: async (id, data) => {
+    invalidateTaskListCache();
+    return unwrapData(await api.patch(`${ENDPOINTS.tasks}/${id}`, data));
+  },
+  delete: async (id) => {
+    invalidateTaskListCache();
+    return unwrapData(await api.delete(`${ENDPOINTS.tasks}/${id}`));
+  },
   getDashboardStats: async (params) => unwrapData(await api.get(`${ENDPOINTS.tasks}/dashboard/stats`, { params })),
-  assign: async (id, data) => unwrapData(await api.post(`${ENDPOINTS.tasks}/${id}/assign`, data)),
-  reassign: async (id, data) => unwrapData(await api.post(`${ENDPOINTS.tasks}/${id}/reassign`, data)),
-  changeStatus: async (id, data) => unwrapData(await api.patch(`${ENDPOINTS.tasks}/${id}/status`, data)),
+  assign: async (id, data) => {
+    invalidateTaskListCache();
+    return unwrapData(await api.post(`${ENDPOINTS.tasks}/${id}/assign`, data));
+  },
+  reassign: async (id, data) => {
+    invalidateTaskListCache();
+    return unwrapData(await api.post(`${ENDPOINTS.tasks}/${id}/reassign`, data));
+  },
+  changeStatus: async (id, data) => {
+    invalidateTaskListCache();
+    return unwrapData(await api.patch(`${ENDPOINTS.tasks}/${id}/status`, data));
+  },
 };
 
 const mockAdapter = {

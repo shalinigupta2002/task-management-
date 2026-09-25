@@ -1,11 +1,10 @@
-import { USE_MOCK_API } from "../constants/config";
+import { USE_MOCK_API, API_BASE_URL } from "../constants/config";
 import { getActivePlans, computeYearlySavings, normalizePlan } from "./planStorage";
-import planService from "../services/planService";
 
 /** Map canonical plan to public pricing card. */
 export function mapPlanToLandingCard(plan) {
   const p = normalizePlan(plan);
-  const nameLower = p.name.toLowerCase();
+  const nameLower = (p.name || "").toLowerCase();
   const savings = computeYearlySavings(p.monthlyPrice, p.yearlyPrice);
 
   return {
@@ -20,7 +19,7 @@ export function mapPlanToLandingCard(plan) {
     features: p.features,
     popular: nameLower.includes("professional"),
     cta: "Start Free Trial",
-    billingOptions: p.billingOptions,
+    billingOptions: p.billingOptions || { monthly: true, yearly: true },
     savings,
   };
 }
@@ -32,62 +31,74 @@ export function getLandingPlansFromStorage() {
     .map(mapPlanToLandingCard);
 }
 
-/** Load active plans for home / pricing pages. */
+/**
+ * Load active plans for home / pricing.
+ * Unauthenticated + cache-busted only. Do NOT fall back to authenticated
+ * planService.getAll() — on public /pricing that 401s/hangs via axios
+ * interceptors and left UI stuck on "Loading active subscription plans...".
+ */
 export async function fetchLandingPlans() {
   if (USE_MOCK_API) {
     return getLandingPlansFromStorage();
   }
 
   try {
-    // Prefer public onboarding plans (no auth) so pricing works for anonymous visitors
-    const { default: api } = await import("../api/axios");
-    const publicRes = await api.get("/v1/onboarding/plans");
-    const publicData = publicRes?.data?.data;
-    if (Array.isArray(publicData) && publicData.length > 0) {
-      return publicData.map((p) => mapPlanToLandingCard({
+    const url = `${API_BASE_URL}/v1/onboarding/plans?_=${Date.now()}`;
+    const publicRes = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+
+    if (!publicRes.ok) {
+      console.warn("Public plans fetch failed with status", publicRes.status);
+      return [];
+    }
+
+    const body = await publicRes.json();
+    const publicData = body?.data;
+    if (!Array.isArray(publicData) || publicData.length === 0) {
+      return [];
+    }
+
+    return publicData.map((p) =>
+      mapPlanToLandingCard({
         id: p.id,
-        name: p.planName,
-        planName: p.planName,
+        name: p.planName || p.name,
+        planName: p.planName || p.name,
         description: p.description,
-        monthlyPrice: p.monthlyPrice,
-        yearlyPrice: p.yearlyPrice,
-        currency: "INR",
-        users: p.maxEmployees,
-        features: p.features,
+        monthlyPrice: Number(p.monthlyPrice ?? 0),
+        yearlyPrice: Number(p.yearlyPrice ?? 0),
+        currency: p.currency || "INR",
+        users: p.maxEmployees ?? p.users,
+        storage: p.storage,
+        features: Array.isArray(p.features) ? p.features : [],
         status: p.status,
-        enabled: true,
+        enabled: p.status ? p.status === "ACTIVE" : true,
         billingOptions: { monthly: true, yearly: true },
-      }));
-    }
+      })
+    );
   } catch (err) {
-    console.warn("Public plans fetch failed, trying authenticated planService", err);
+    console.warn("Public plans fetch failed", err);
+    return [];
   }
-
-  try {
-    const res = await planService.getAll();
-    if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-      const active = res.data
-        .filter((p) => p.status === "ACTIVE" || p.enabled !== false)
-        .map(mapPlanToLandingCard);
-      if (active.length > 0) return active;
-    }
-  } catch (err) {
-    console.warn("Failed to fetch plans for landing page", err);
-  }
-
-  return getLandingPlansFromStorage();
 }
 
 export function filterPlansByBilling(plans, yearly) {
   return plans.filter((plan) => {
-    if (yearly) return plan.billingOptions?.yearly !== false && plan.yearlyPrice > 0;
-    return plan.billingOptions?.monthly !== false && plan.monthlyPrice >= 0;
+    const opts = plan.billingOptions || {};
+    if (yearly) return opts.yearly !== false && Number(plan.yearlyPrice) > 0;
+    return opts.monthly !== false && Number(plan.monthlyPrice) >= 0;
   });
 }
 
 export function formatPlanPrice(plan, yearly) {
   if (yearly) {
-    return { amount: plan.yearlyPrice, period: "year", label: "Billed annually" };
+    return { amount: Number(plan.yearlyPrice) || 0, period: "year", label: "Billed annually" };
   }
-  return { amount: plan.monthlyPrice, period: "month", label: "Billed monthly" };
+  return { amount: Number(plan.monthlyPrice) || 0, period: "month", label: "Billed monthly" };
 }

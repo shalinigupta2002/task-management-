@@ -13,21 +13,31 @@ import {
   overdueWhere,
 } from "../utils/nearingDue.js";
 
-const taskInclude = {
+/** Lightweight list include — avoid expensive _count / nested graphs (Neon latency). */
+const taskListInclude = {
   category: { select: { id: true, categoryName: true } },
   frequency: { select: { id: true, frequencyName: true, daysInterval: true, numberOfDays: true } },
   department: { select: { id: true, departmentName: true, departmentCode: true } },
-  company: { select: { id: true, companyName: true, companyCode: true } },
   createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-  approver: { select: { id: true, firstName: true, lastName: true, email: true } },
   assignments: {
     where: { status: { not: "CANCELLED" } },
     orderBy: { assignedDate: "desc" },
-    include: {
+    select: {
+      id: true,
+      assignedToId: true,
+      assignedById: true,
+      status: true,
+      assignedDate: true,
       assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
       assignedBy: { select: { id: true, firstName: true, lastName: true } },
     },
   },
+};
+
+const taskInclude = {
+  ...taskListInclude,
+  company: { select: { id: true, companyName: true, companyCode: true } },
+  approver: { select: { id: true, firstName: true, lastName: true, email: true } },
   _count: {
     select: {
       comments: true,
@@ -129,7 +139,77 @@ class TaskRepository {
       const orderBy = parseSort(query, TASK_SORT_FIELDS, "createdAt");
 
       const [items, total] = await Promise.all([
-        prisma.task.findMany({ where, skip, take: limit, orderBy, include: taskInclude }),
+        prisma.task.findMany({ where, skip, take: limit, orderBy, include: taskListInclude }),
+        prisma.task.count({ where }),
+      ]);
+
+      return { items, meta: buildPaginationMeta(total, page, limit) };
+    } catch (error) {
+      handlePrismaError(error);
+    }
+  }
+
+  /**
+   * Fast path for Employee My Tasks — minimal select, only the caller's assignment row.
+   * Avoids heavy includes that made Neon list calls take 6–25s.
+   */
+  async findAllForEmployee(userId, companyId, query = {}) {
+    try {
+      const { page, limit, skip } = parsePagination(query);
+      const where = {
+        deletedAt: null,
+        companyId,
+        assignments: {
+          some: { assignedToId: userId, status: { not: "CANCELLED" } },
+        },
+      };
+
+      if (query.status) where.status = query.status;
+      if (query.priority) where.priority = query.priority;
+      if (query.search?.trim()) {
+        const q = query.search.trim();
+        where.OR = [
+          { title: { contains: q, mode: "insensitive" } },
+          { taskCode: { contains: q, mode: "insensitive" } },
+        ];
+      }
+
+      const [items, total] = await Promise.all([
+        prisma.task.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            taskCode: true,
+            title: true,
+            description: true,
+            priority: true,
+            status: true,
+            dueDate: true,
+            startDate: true,
+            createdAt: true,
+            completedAt: true,
+            category: { select: { id: true, categoryName: true } },
+            department: { select: { id: true, departmentName: true } },
+            createdBy: { select: { id: true, firstName: true, lastName: true } },
+            assignments: {
+              where: { assignedToId: userId, status: { not: "CANCELLED" } },
+              take: 1,
+              orderBy: { assignedDate: "desc" },
+              select: {
+                id: true,
+                assignedToId: true,
+                assignedById: true,
+                status: true,
+                assignedDate: true,
+                assignedBy: { select: { id: true, firstName: true, lastName: true } },
+                assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+              },
+            },
+          },
+        }),
         prisma.task.count({ where }),
       ]);
 
@@ -151,8 +231,18 @@ class TaskRepository {
   }
 
   async generateTaskCode(companyId, tx = prisma) {
-    const count = await tx.task.count({ where: { companyId } });
-    return `TSK-${String(count + 1).padStart(4, "0")}`;
+    // Use max numeric suffix (not row count) so soft-deletes / gaps cannot collide.
+    const latest = await tx.task.findFirst({
+      where: { companyId, taskCode: { startsWith: "TSK-" } },
+      orderBy: { taskCode: "desc" },
+      select: { taskCode: true },
+    });
+    let next = 1;
+    if (latest?.taskCode) {
+      const match = String(latest.taskCode).match(/TSK-(\d+)/i);
+      if (match) next = Number(match[1]) + 1;
+    }
+    return `TSK-${String(next).padStart(4, "0")}`;
   }
 
   async create(data, tx = prisma, options = {}) {

@@ -14,7 +14,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ExternalLinkAttachment, { AttachmentLinkList } from "../shared/ExternalLinkAttachment";
 import ConfirmDialog from "../shared/ConfirmDialog";
 import TaskStatusBadge from "./TaskStatusBadge";
-import { card, SAMPLE_TASK, TASK_LIST, PRIORITY_DOT } from "./taskShared";
+import { card } from "./taskShared";
 import taskCategoryService from "../../services/taskCategoryService";
 import taskFrequencyService from "../../services/taskFrequencyService";
 import taskService from "../../services/taskService";
@@ -117,7 +117,9 @@ function buildTaskApiPayload(formState, { includeCompanyId = false, status } = {
 
   if (startDate) payload.startDate = startDate;
   if (dueDate) payload.dueDate = dueDate;
+  // Prefer explicit endDate; fall back to dueDate so recurring tasks still get a schedule end.
   if (endDate) payload.endDate = endDate;
+  else if (dueDate) payload.endDate = dueDate;
 
   return payload;
 }
@@ -129,7 +131,14 @@ function getEmployeeLabel(emp) {
 }
 
 function getAssigneeLabel(emp) {
-  return getEmployeeLabel(emp);
+  const name = getEmployeeLabel(emp);
+  const email = emp?.email ? String(emp.email).trim() : "";
+  // Include email so assignees are uniquely identifiable (names alone collide: "Employee One/Two/Three").
+  return email ? `${name} (${email})` : name;
+}
+
+function getEmployeeDepartmentId(emp) {
+  return emp?.departmentId || emp?.department?.id || "";
 }
 
 function mapTaskToForm(task) {
@@ -281,27 +290,18 @@ export default function TaskForm() {
     (async () => {
       try {
         setLoading(true);
-        let task;
-        // Mock fallback to prevent blank pages during local testing
-        if (id === "1" || id === "2" || id === "3" || id === "4" || id === "5" || id === "6") {
-          const mockItem = TASK_LIST.find((t) => t.id === id);
-          task = {
-            ...SAMPLE_TASK,
-            ...mockItem,
-            assignments: SAMPLE_TASK.assignedTo.map((a, idx) => ({
-              id: `mock-assign-${idx}`,
-              assignedToId: `mock-emp-${idx}`,
-              assignedTo: { id: `mock-emp-${idx}`, firstName: a.name.split(" ")[0], lastName: a.name.split(" ")[1] || "", email: "mock@employee.com" }
-            }))
-          };
-        } else {
-          task = await taskService.getById(id);
-        }
+        const task = await taskService.getById(id);
 
         if (active) {
           setForm(mapTaskToForm(task));
           if (task.attachments) {
-            setAttachmentLinks(task.attachments.map((f) => ({ id: f.name, name: f.name, url: f.url || "" })));
+            setAttachmentLinks(task.attachments.map((f) => ({
+              id: f.id || f.name,
+              name: f.name || f.fileName || "Attachment",
+              url: f.url || f.fileUrl || "",
+            })));
+          } else {
+            setAttachmentLinks([]);
           }
         }
       } catch (error) {
@@ -318,6 +318,13 @@ export default function TaskForm() {
     () => assigneeOptions.filter((e) => form.assignedToIds.includes(e.id)),
     [assigneeOptions, form.assignedToIds]
   );
+
+  // When a department is chosen, only offer employees in that department.
+  // Prevents cross-dept mis-assignment when multiple employees share similar names.
+  const visibleAssigneeOptions = useMemo(() => {
+    if (!form.departmentId) return assigneeOptions;
+    return assigneeOptions.filter((e) => getEmployeeDepartmentId(e) === form.departmentId);
+  }, [assigneeOptions, form.departmentId]);
 
   const selectedFrequency = useMemo(
     () => frequencyOptions.find((f) => f.id === form.frequencyId) || null,
@@ -354,9 +361,16 @@ export default function TaskForm() {
         const frequency = frequencyOptions.find((f) => f.id === value);
         next = applyFrequencyToTaskForm(frequency || null, { ...prev, frequencyId: value });
       }
+      if (name === "departmentId") {
+        // Drop assignees that are not in the newly selected department.
+        next.assignedToIds = (prev.assignedToIds || []).filter((id) => {
+          const emp = assigneeOptions.find((a) => a.id === id);
+          return emp && getEmployeeDepartmentId(emp) === value;
+        });
+      }
       if (name === "assignedToIds" && Array.isArray(value) && value.length > 0 && !prev.departmentId) {
         const selectedEmp = assigneeOptions.find((emp) => emp.id === value[0]);
-        const empDeptId = selectedEmp?.departmentId || selectedEmp?.department?.id;
+        const empDeptId = getEmployeeDepartmentId(selectedEmp);
         if (empDeptId) {
           next.departmentId = empDeptId;
         }
@@ -424,7 +438,8 @@ export default function TaskForm() {
 
     const freq = frequencyOptions.find((f) => f.id === form.frequencyId);
     const isOneTime = form.recurrenceType === "ONE_TIME" || freq?.frequencyName === "Once";
-    if (!isOneTime && !form.endDate?.trim() && !form.durationDays) {
+    // Recurring tasks need an end boundary — accept explicit endDate, duration, or dueDate.
+    if (!isOneTime && !form.endDate?.trim() && !form.durationDays && !form.dueDate?.trim()) {
       next.endDate = "End date is required for recurring tasks (or set a duration)";
     }
 
@@ -451,7 +466,6 @@ export default function TaskForm() {
         payload.departmentId = lockedDepartmentId;
       }
 
-      console.log("CREATE TASK PAYLOAD:", payload);
       await taskService.create(payload);
       toast.success("Task created successfully!");
       navigate(tasksBase);
@@ -541,9 +555,9 @@ export default function TaskForm() {
 
   try {
     if (isCreate) {
-      return (
+  return (
         <PageLayout>
-          <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: "#f8fafc", minHeight: "100%" }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: "#f8fafc", minHeight: "100%" }}>
             <Box sx={{ display: "flex", alignItems: "center", mb: 3, gap: 2 }}>
               <Button
                 variant="outlined"
@@ -570,10 +584,10 @@ export default function TaskForm() {
                     <Tab key={lbl} label={lbl} sx={{ textTransform: "none", fontWeight: 600 }} />
                   ))}
                 </Tabs>
-              </Box>
+      </Box>
 
               <Grid container spacing={3} component="form" onSubmit={handleCreateSubmit} noValidate>
-                <Grid item xs={12}>
+          <Grid item xs={12}>
                   <TabPanel value={tab} index={0}>
                     <Grid container spacing={2.5}>
                       <Grid item xs={12} md={6}>
@@ -622,9 +636,15 @@ export default function TaskForm() {
                         <FormControl fullWidth error={Boolean(errors.assignedToIds)} sx={{ mb: 2 }}>
                           <InputLabel id="create-assignee-label">Assign To *</InputLabel>
                           <Select labelId="create-assignee-label" multiple name="assignedToIds" value={form.assignedToIds} onChange={handleChange} label="Assign To *" sx={{ borderRadius: 2 }}>
-                            {assigneeOptions.map((e) => (
-                              <MenuItem key={e.id} value={e.id}>{getAssigneeLabel(e)}</MenuItem>
-                            ))}
+                            {visibleAssigneeOptions.length === 0 ? (
+                              <MenuItem value="" disabled>
+                                {form.departmentId ? "No employees in this department" : "No employees available"}
+                              </MenuItem>
+                            ) : (
+                              visibleAssigneeOptions.map((e) => (
+                                <MenuItem key={e.id} value={e.id}>{getAssigneeLabel(e)}</MenuItem>
+                              ))
+                            )}
                           </Select>
                           {errors.assignedToIds && <FormHelperText>{errors.assignedToIds}</FormHelperText>}
                         </FormControl>
@@ -683,12 +703,12 @@ export default function TaskForm() {
                         </FormControl>
                         <TextField fullWidth type="number" label="Estimated Hours" name="estimatedHours" value={form.estimatedHours} onChange={handleChange}
                           sx={{ mb: 2, ...fieldSx }} />
-                      </Grid>
-                      <Grid item xs={12}>
+          </Grid>
+          <Grid item xs={12}>
                         <TextField fullWidth multiline rows={4} label="Task Description" name="description" value={form.description} onChange={handleChange}
                           sx={{ ...fieldSx }} />
                       </Grid>
-                    </Grid>
+          </Grid>
                   </TabPanel>
 
                   <TabPanel value={tab} index={1}>
@@ -701,12 +721,12 @@ export default function TaskForm() {
                         <FormControl fullWidth sx={{ mb: 2.5 }}>
                           <InputLabel id="create-priority-label">Priority</InputLabel>
                           <Select labelId="create-priority-label" name="priority" value={form.priority} label="Priority" onChange={handleChange} sx={{ borderRadius: 2 }}>
-                            <MenuItem value="High">High</MenuItem>
-                            <MenuItem value="Medium">Medium</MenuItem>
-                            <MenuItem value="Low">Low</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
+                <MenuItem value="High">High</MenuItem>
+                <MenuItem value="Medium">Medium</MenuItem>
+                <MenuItem value="Low">Low</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
                       <Grid item xs={12} md={6}>
                         {selectedFrequency && selectedFrequency.frequencyName !== "Once" && (
                           <Box sx={{ p: 2.5, bgcolor: "#f8fafc", borderRadius: 2.5, border: "1px solid #e2e8f0" }}>
@@ -839,9 +859,15 @@ export default function TaskForm() {
                       <FormControl fullWidth error={Boolean(errors.assignedToIds)} sx={{ mb: 2 }}>
                         <InputLabel id="edit-assignee-label">Assign To *</InputLabel>
                         <Select labelId="edit-assignee-label" multiple name="assignedToIds" value={form.assignedToIds} onChange={handleChange} label="Assign To *" sx={{ borderRadius: 2 }} disabled={isReadOnly}>
-                          {assigneeOptions.map((e) => (
-                            <MenuItem key={e.id} value={e.id}>{getAssigneeLabel(e)}</MenuItem>
-                          ))}
+                          {visibleAssigneeOptions.length === 0 ? (
+                            <MenuItem value="" disabled>
+                              {form.departmentId ? "No employees in this department" : "No employees available"}
+                            </MenuItem>
+                          ) : (
+                            visibleAssigneeOptions.map((e) => (
+                              <MenuItem key={e.id} value={e.id}>{getAssigneeLabel(e)}</MenuItem>
+                            ))
+                          )}
                         </Select>
                         {errors.assignedToIds && <FormHelperText>{errors.assignedToIds}</FormHelperText>}
                       </FormControl>
@@ -922,9 +948,9 @@ export default function TaskForm() {
                           <MenuItem value="High">High</MenuItem>
                           <MenuItem value="Medium">Medium</MenuItem>
                           <MenuItem value="Low">Low</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
+              </Select>
+            </FormControl>
+          </Grid>
                     <Grid item xs={12} md={6}>
                       {selectedFrequency && selectedFrequency.frequencyName !== "Once" && (
                         <Box sx={{ p: 2.5, bgcolor: "#f8fafc", borderRadius: 2.5, border: "1px solid #e2e8f0" }}>
@@ -951,17 +977,16 @@ export default function TaskForm() {
                   {!isReadOnly && <ExternalLinkAttachment onAddLink={(link) => setAttachmentLinks((p) => [...p, link])} />}
                   <Box sx={{ mt: 3 }}>
                     <AttachmentLinkList
-                      items={attachmentLinks.length ? attachmentLinks : SAMPLE_TASK.attachments.map((f) => ({
-                        id: f.name,
-                        name: f.name,
-                        url: f.url || "",
-                      }))}
-                      readOnly={!attachmentLinks.length || isReadOnly}
-                      onRemove={attachmentLinks.length && !isReadOnly ? (id) => setAttachmentLinks((prev) => prev.filter((item) => item.id !== id)) : undefined}
+                      items={attachmentLinks}
+                      readOnly={isReadOnly}
+                      onRemove={!isReadOnly ? (linkId) => setAttachmentLinks((prev) => prev.filter((item) => item.id !== linkId)) : undefined}
                     />
+                    {!attachmentLinks.length && (
+                      <Typography sx={{ color: "#94A3B8", fontSize: "0.85rem", mt: 1 }}>No attachments.</Typography>
+                    )}
                   </Box>
                 </TabPanel>
-              </Grid>
+          </Grid>
 
               <Grid item xs={12}>
                 <Typography sx={{ fontWeight: 700, color: "#0F172A", fontSize: "0.95rem", mb: 1.5, mt: 1 }}>Assignees</Typography>
@@ -985,13 +1010,25 @@ export default function TaskForm() {
 
                 <Typography sx={{ fontWeight: 700, color: "#0F172A", fontSize: "0.95rem", mb: 1.5 }}>Approvers</Typography>
                 <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
-                  {SAMPLE_TASK.approvers.map((name, i) => (
-                    <Chip key={name} avatar={<Avatar sx={{ bgcolor: "#F1F5F9", color: "#475569" }}>{name[0]}</Avatar>} label={name}
-                      sx={{ bgcolor: "#F8FAFC", border: "1px solid #E2E8F0", fontWeight: 500 }} />
-                  ))}
+                  {!form.approverId ? (
+                    <Typography variant="body2" color="text.secondary">No approver selected.</Typography>
+                  ) : (
+                    (() => {
+                      const u = employeeOptions.find((e) => e.id === form.approverId);
+                      const name = u ? getEmployeeLabel(u) : form.approverId;
+                      return (
+                        <Chip
+                          key={form.approverId}
+                          avatar={<Avatar sx={{ bgcolor: "#F1F5F9", color: "#475569" }}>{String(name)[0]}</Avatar>}
+                          label={name}
+                          sx={{ bgcolor: "#F8FAFC", border: "1px solid #E2E8F0", fontWeight: 500 }}
+                        />
+                      );
+                    })()
+                  )}
                 </Box>
-              </Grid>
-            </Grid>
+          </Grid>
+        </Grid>
 
             <Box display="flex" justifyContent="flex-end" gap={1.5} mt={2}>
               <Button variant="outlined" onClick={() => navigate(tasksBase)} sx={{ textTransform: "none", borderColor: "#E2E8F0", color: "#64748B", borderRadius: 2, px: 3 }}>
@@ -1006,7 +1043,7 @@ export default function TaskForm() {
                 </>
               )}
             </Box>
-          </Paper>
+      </Paper>
         </Box>
 
         <ConfirmDialog
@@ -1026,7 +1063,7 @@ export default function TaskForm() {
       <Box sx={{ p: 4, color: "#991B1B", bgcolor: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 3, m: 3 }}>
         <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>TaskForm Render Crash Detected</Typography>
         <pre style={{ overflowX: "auto", whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.85rem" }}>{err.stack || err.message}</pre>
-      </Box>
-    );
+    </Box>
+  );
   }
 }

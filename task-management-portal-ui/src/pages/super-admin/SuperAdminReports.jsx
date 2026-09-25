@@ -11,7 +11,8 @@ import SuperAdminLayout from "../../components/layouts/SuperAdminLayout";
 import { StatCard, PageHeader } from "../../components/super-admin/shared";
 import { LoadingSkeleton, ErrorState } from "../../components/shared";
 import superAdminReportsService from "../../services/superAdminReportsService";
-import { getCompanies, getPlans } from "../../utils/superAdminStorage";
+import companyService from "../../services/companyService";
+import planService from "../../services/planService";
 import { downloadReportCsv, printReport } from "../../utils/superAdminReports";
 import {
   ReportFiltersBar,
@@ -41,8 +42,28 @@ export default function SuperAdminReports() {
     planId: null,
   });
 
-  const allCompanies = getCompanies();
-  const allPlans = getPlans();
+  const [filterCompanies, setFilterCompanies] = useState([]);
+  const [filterPlans, setFilterPlans] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [cos, plans] = await Promise.all([
+          companyService.getAll({ limit: 200 }).catch(() => []),
+          planService.getAll().catch(() => ({ data: [] })),
+        ]);
+        if (!active) return;
+        const cosList = Array.isArray(cos) ? cos : (cos?.data || cos?.items || []);
+        const planList = Array.isArray(plans?.data) ? plans.data : (Array.isArray(plans) ? plans : []);
+        setFilterCompanies(cosList.map((c) => ({ id: c.id, name: c.companyName || c.name })));
+        setFilterPlans(planList.map((pl) => ({ id: pl.id, name: pl.planName || pl.name })));
+      } catch {
+        if (active) { setFilterCompanies([]); setFilterPlans([]); }
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -86,8 +107,8 @@ export default function SuperAdminReports() {
 
         <ReportFiltersBar
           {...filters}
-          companies={allCompanies}
-          plans={allPlans}
+          companies={filterCompanies}
+          plans={filterPlans}
           onChange={handleFilterChange}
           onRefresh={loadReport}
           loading={loading}

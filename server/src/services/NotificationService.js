@@ -1,5 +1,6 @@
 import NotificationRepository from "../repositories/NotificationRepository.js";
 import PreferenceRepository from "../repositories/PreferenceRepository.js";
+import UserRepository from "../repositories/UserRepository.js";
 import ApiError from "../utils/ApiError.js";
 import { emitToUser } from "../socket/io.js";
 import { NOTIFICATION_TYPE } from "../constants/notification.constants.js";
@@ -17,7 +18,19 @@ class NotificationService {
     return map[category] !== false;
   }
 
-  async create(data, category = "system", force = false) {
+  async create(data, category = "system", force = false, actor = null) {
+    if (actor?.userId && data.userId) {
+      const target = await UserRepository.findById(data.userId);
+      if (!target || target.deletedAt) {
+        throw ApiError.notFound("Target user not found");
+      }
+      if (actor.role !== "SUPER_ADMIN") {
+        if (!actor.companyId || target.companyId !== actor.companyId) {
+          throw ApiError.forbidden("Cannot create notification for a user outside your company");
+        }
+      }
+    }
+
     if (!force) {
       const notify = await this.shouldNotify(data.userId, category);
       if (!notify) return null;

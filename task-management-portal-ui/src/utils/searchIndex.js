@@ -1,51 +1,67 @@
-import { getCompanies } from "../utils/superAdminStorage";
-import { getSubAdmins } from "../utils/mainAdminStorage";
-import { getEmployeeTasks } from "../utils/employeeStorage";
-
 let cachedIndex = null;
 
-export function buildSearchIndex() {
-  if (cachedIndex) return cachedIndex;
-
+/** Build search index from supplied live records (no localStorage demo data). */
+export function buildSearchIndex({ companies = [], users = [], tasks = [], departments = [] } = {}) {
   const items = [];
 
-  try {
-    getCompanies().forEach((c) => {
-      items.push({ id: `co-${c.id}`, type: "Company", title: c.name, subtitle: c.email, path: `/super-admin/companies/${c.id}` });
+  companies.forEach((c) => {
+    items.push({
+      id: `co-${c.id}`,
+      type: "Company",
+      title: c.companyName || c.name,
+      subtitle: c.email || "",
+      path: `/super-admin/companies/${c.id}`,
     });
-  } catch { /* ignore */ }
+  });
 
-  try {
-    getSubAdmins().forEach((a) => {
-      items.push({ id: `sa-${a.id}`, type: "Employee", title: a.fullName, subtitle: a.department, path: `/dashboard/admins/${a.id}` });
+  users.forEach((u) => {
+    const name = `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email;
+    items.push({
+      id: `usr-${u.id}`,
+      type: "User",
+      title: name,
+      subtitle: u.email || "",
+      path: "/dashboard/employees",
     });
-  } catch { /* ignore */ }
+  });
 
-  try {
-    getEmployeeTasks().forEach((t) => {
-      items.push({ id: `tk-${t.id}`, type: "Task", title: t.title, subtitle: t.status, path: `/employee/tasks/${t.id}` });
+  tasks.forEach((t) => {
+    items.push({
+      id: `tk-${t.id}`,
+      type: "Task",
+      title: t.title,
+      subtitle: t.status || "",
+      path: `/dashboard/tasks/${t.id}`,
     });
-  } catch { /* ignore */ }
+  });
 
-  const departments = ["HR", "IT", "Finance", "Operations", "Compliance", "Engineering", "Sales"];
-  departments.forEach((d, i) => {
-    items.push({ id: `dept-${i}`, type: "Department", title: d, subtitle: "Department", path: "/dashboard/departments" });
+  departments.forEach((d) => {
+    items.push({
+      id: `dept-${d.id}`,
+      type: "Department",
+      title: d.departmentName || d.name,
+      subtitle: "Department",
+      path: "/dashboard/departments",
+    });
   });
 
   cachedIndex = items;
   return items;
 }
 
-export function searchAll(index, query) {
-  const q = query.toLowerCase();
-  return index.filter(
-    (item) =>
-      item.title.toLowerCase().includes(q) ||
-      item.subtitle?.toLowerCase().includes(q) ||
-      item.type.toLowerCase().includes(q)
-  ).slice(0, 12);
+export function getSearchIndex() {
+  return cachedIndex || [];
 }
 
-export function invalidateSearchIndex() {
+export function clearSearchIndex() {
   cachedIndex = null;
+}
+
+export function searchAll(index, query) {
+  const q = String(query || "").toLowerCase().trim();
+  if (!q) return [];
+  const list = index || cachedIndex || [];
+  return list.filter((item) =>
+    [item.title, item.subtitle, item.type].some((v) => String(v || "").toLowerCase().includes(q))
+  );
 }

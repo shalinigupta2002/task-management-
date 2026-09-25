@@ -42,20 +42,22 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState(null);
-  const [user, setUser] = useState({ name: "Sandeep Mallik", role: "Administrator" });
+  const [user, setUser] = useState({ name: "User", role: "Administrator" });
   const pageTitle = getPageTitle(location.pathname);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("employeeProfile");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.firstName || parsed.username) {
-          setUser({
-            name: parsed.firstName ? `${parsed.firstName} ${parsed.lastName || ""}`.trim() : parsed.username,
-            role: parsed.role || "Administrator",
-          });
-        }
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const name = parsed.name
+          || `${parsed.firstName || ""} ${parsed.lastName || ""}`.trim()
+          || parsed.email
+          || "User";
+        setUser({
+          name,
+          role: parsed.role?.name || parsed.roleName || parsed.role || "Administrator",
+        });
       }
     } catch (e) {
       console.error("Failed to parse user profile", e);

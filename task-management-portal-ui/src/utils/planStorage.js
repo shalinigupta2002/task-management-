@@ -75,9 +75,10 @@ function writeRawPlans(plans) {
 }
 
 function ensureSeeded() {
-  // Seed defaults only when the key is missing — never overwrite existing data (including []).
+  // Do not seed demo plans into browser storage for production.
+  // Mock mode may still call resetPlansToDefaults() explicitly.
   if (readRawPlans() === null) {
-    writeRawPlans(DEFAULT_PLANS.map((p) => normalizePlan(p)));
+    writeRawPlans([]);
   }
 }
 
@@ -85,10 +86,10 @@ function persistNormalized(plans) {
   writeRawPlans(plans.map(normalizePlan));
 }
 
-/** Canonical read — always returns normalized plans from `sa_plans`. */
+/** Canonical read — returns normalized plans from `sa_plans` (empty when unset). */
 export function getPlans() {
   ensureSeeded();
-  const raw = readRawPlans() || DEFAULT_PLANS;
+  const raw = readRawPlans() || [];
   return raw.map(normalizePlan);
 }
 

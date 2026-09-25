@@ -217,6 +217,12 @@ class OnboardingService {
 
   /** Dev/test helper: simulate INTERNAL provider success after checkout. */
   async simulatePaymentSuccess({ referenceCode, sessionToken }) {
+    if (process.env.NODE_ENV === "production") {
+      throw ApiError.forbidden("Payment simulation is disabled in production");
+    }
+    if (process.env.ALLOW_PAYMENT_SIMULATE === "false") {
+      throw ApiError.forbidden("Payment simulation is disabled");
+    }
     if (PaymentProvider.mode !== "INTERNAL") {
       throw ApiError.badRequest("Payment simulation is only available for INTERNAL provider");
     }

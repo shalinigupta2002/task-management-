@@ -29,7 +29,7 @@ export default function EmployeeTaskList() {
   const [priority, setPriority] = useState("all");
   const [category, setCategory] = useState("all");
   const [assignedBy, setAssignedBy] = useState("all");
-  const [sort, setSort] = useState("Due Date");
+  const [sort, setSort] = useState("Assigned Date");
   const [page, setPage] = useState(1);
 
   const loadTasks = useCallback(async () => {
@@ -75,7 +75,11 @@ export default function EmployeeTaskList() {
     } else if (sort === "Status") {
       list.sort((a, b) => String(a.status).localeCompare(String(b.status)));
     } else if (sort === "Assigned Date") {
-      list.sort((a, b) => String(b.assignedDate).localeCompare(String(a.assignedDate)));
+      list.sort((a, b) => {
+        const ta = a.assignedDateRaw ? new Date(a.assignedDateRaw).getTime() : 0;
+        const tb = b.assignedDateRaw ? new Date(b.assignedDateRaw).getTime() : 0;
+        return tb - ta; // newest assignments first
+      });
     } else {
       list.sort((a, b) => {
         const da = a.dueDateRaw ? new Date(a.dueDateRaw).getTime() : 0;
@@ -86,7 +90,8 @@ export default function EmployeeTaskList() {
     return list;
   }, [tasks, search, status, priority, category, assignedBy, sort]);
 
-  const paged = filtered.slice((page - 1) * 8, page * 8);
+  const PAGE_SIZE = 100;
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <EmployeeLayout>
@@ -100,7 +105,7 @@ export default function EmployeeTaskList() {
         )}
 
         <Box sx={{ ...card, mb: 2 }}>
-          <TextField size="small" placeholder="Search tasks..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} fullWidth sx={{ mb: 2, ...fieldSx }}
+          <TextField size="small" placeholder="Search my tasks..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} fullWidth sx={{ mb: 2, ...fieldSx }} inputProps={{ "data-testid": "employee-tasks-search" }}
             InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: "#94A3B8", fontSize: 20 }} /></InputAdornment> }} />
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(5, 1fr)" }, gap: 2 }}>
             <FormControl size="small" sx={fieldSx}><InputLabel>Status</InputLabel>
@@ -204,7 +209,7 @@ export default function EmployeeTaskList() {
                 </Table>
               </TableContainer>
               <Box display="flex" justifyContent="center" py={2}>
-                <Pagination count={Math.ceil(filtered.length / 8) || 1} page={page} onChange={(_, v) => setPage(v)} size="small" />
+                <Pagination count={Math.ceil(filtered.length / PAGE_SIZE) || 1} page={page} onChange={(_, v) => setPage(v)} size="small" color="primary" />
               </Box>
             </>
           )}

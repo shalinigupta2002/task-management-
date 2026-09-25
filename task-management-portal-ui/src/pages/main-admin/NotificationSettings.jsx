@@ -1,89 +1,150 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
-  Box, Typography, Button, FormGroup, FormControlLabel, Checkbox, TextField, Chip, Switch,
+  Box, Typography, Button, FormGroup, FormControlLabel, Checkbox, Chip, Switch,
+  CircularProgress, Alert,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import Layout from "../../components/layouts/Layout";
 import SubAdminLayout from "../../components/layouts/SubAdminLayout";
-import { PageHeader, card, fieldSx } from "../../components/main-admin/shared";
-import { getNotificationSettings, setNotificationSettings } from "../../utils/mainAdminStorage";
+import { PageHeader, card } from "../../components/main-admin/shared";
+import preferenceService from "../../services/preferenceService";
+import { getErrorMessage } from "../../utils/session";
+import toast from "../../utils/toast";
 
-const REMINDER_OPTIONS = [
-  { id: "30_min", label: "30 Minutes" },
-  { id: "1_hour", label: "1 Hour" },
-  { id: "6_hours", label: "6 Hours" },
-  { id: "12_hours", label: "12 Hours" },
-  { id: "1_day", label: "1 Day" },
-  { id: "2_days", label: "2 Days" },
-  { id: "3_days", label: "3 Days" },
-  { id: "custom", label: "Custom Reminder" },
+const ALERT_OPTIONS = [
+  { id: "taskReminder", label: "Task reminders" },
+  { id: "overdueReminder", label: "Overdue reminders" },
+  { id: "messageNotification", label: "New messages" },
+  { id: "systemNotification", label: "System alerts" },
 ];
+
+const DEFAULTS = {
+  taskReminder: true,
+  overdueReminder: true,
+  messageNotification: true,
+  systemNotification: true,
+  emailNotification: false,
+  inAppNotification: true,
+};
 
 export default function NotificationSettings() {
   const location = useLocation();
   const isSubAdmin = location.pathname.startsWith("/sub-admin");
   const PageLayout = isSubAdmin ? SubAdminLayout : Layout;
 
-  const [settings, setSettings] = useState(getNotificationSettings());
+  const [settings, setSettings] = useState(DEFAULTS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const toggleReminder = (id) => {
-    setSettings((prev) => ({
-      ...prev,
-      reminders: prev.reminders.includes(id) ? prev.reminders.filter((r) => r !== id) : [...prev.reminders, id],
-    }));
-  };
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const pref = await preferenceService.get();
+        if (!active) return;
+        setSettings({
+          taskReminder: pref?.taskReminder !== false,
+          overdueReminder: pref?.overdueReminder !== false,
+          messageNotification: pref?.messageNotification !== false,
+          systemNotification: pref?.systemNotification !== false,
+          emailNotification: Boolean(pref?.emailNotification),
+          inAppNotification: pref?.inAppNotification !== false,
+        });
+        setError("");
+      } catch (err) {
+        if (active) setError(getErrorMessage(err, "Failed to load notification preferences"));
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
-  const handleSave = () => {
-    setNotificationSettings(settings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const toggle = (key) => setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError("");
+      await preferenceService.update(settings);
+      setSaved(true);
+      toast.success("Notification preferences saved");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      const msg = getErrorMessage(err, "Failed to save preferences");
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <PageLayout>
       <Box sx={{ pb: 3 }}>
-        <PageHeader title="Notification Settings" crumbs={[{ label: "Settings", to: isSubAdmin ? "/sub-admin/notification-settings" : "/dashboard/company-settings" }, { label: "Notification Settings" }]} />
+        <PageHeader
+          title="Notification Settings"
+          crumbs={[
+            { label: "Settings", to: isSubAdmin ? "/sub-admin/notification-settings" : "/dashboard/company-settings" },
+            { label: "Notification Settings" },
+          ]}
+        />
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
-          <Box sx={card}>
-            <Typography sx={{ fontWeight: 700, color: "#0F172A", mb: 2 }}>Reminder Before Due Date</Typography>
-            <FormGroup>
-              {REMINDER_OPTIONS.map((r) => (
-                <FormControlLabel key={r.id}
-                  control={<Checkbox checked={settings.reminders.includes(r.id)} onChange={() => toggleReminder(r.id)} sx={{ color: "#2563EB", "&.Mui-checked": { color: "#2563EB" } }} />}
-                  label={<Typography sx={{ fontSize: "0.85rem", color: "#334155" }}>{r.label}</Typography>} />
-              ))}
-            </FormGroup>
-            {settings.reminders.includes("custom") && (
-              <TextField fullWidth type="number" label="Custom Reminder (hours before due date)" value={settings.customReminderHours}
-                onChange={(e) => setSettings((p) => ({ ...p, customReminderHours: Number(e.target.value) }))} sx={{ mt: 2, ...fieldSx }} />
-            )}
-          </Box>
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>{error}</Alert>}
 
-          <Box sx={card}>
-            <Typography sx={{ fontWeight: 700, color: "#0F172A", mb: 2 }}>Notification Channels</Typography>
-            <Box display="flex" justifyContent="space-between" alignItems="center" py={1.5} sx={{ borderBottom: "1px solid #F1F5F9" }}>
-              <Box>
-                <Typography sx={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>In App</Typography>
-                <Typography sx={{ fontSize: "0.78rem", color: "#94A3B8" }}>Show notifications inside the portal</Typography>
-              </Box>
-              <Switch checked={settings.channels.inApp} onChange={(e) => setSettings((p) => ({ ...p, channels: { ...p.channels, inApp: e.target.checked } }))} sx={{ "& .Mui-checked": { color: "#2563EB" }, "& .Mui-checked + .MuiSwitch-track": { bgcolor: "#2563EB" } }} />
+        {loading ? (
+          <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        ) : (
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
+            <Box sx={card}>
+              <Typography sx={{ fontWeight: 700, color: "#0F172A", mb: 2 }}>Alert Types</Typography>
+              <FormGroup>
+                {ALERT_OPTIONS.map((r) => (
+                  <FormControlLabel
+                    key={r.id}
+                    control={
+                      <Checkbox
+                        checked={Boolean(settings[r.id])}
+                        onChange={() => toggle(r.id)}
+                        sx={{ color: "#2563EB", "&.Mui-checked": { color: "#2563EB" } }}
+                      />
+                    }
+                    label={<Typography sx={{ fontSize: "0.85rem", color: "#334155" }}>{r.label}</Typography>}
+                  />
+                ))}
+              </FormGroup>
             </Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" py={1.5}>
-              <Box>
-                <Typography sx={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>Email</Typography>
-                <Typography sx={{ fontSize: "0.78rem", color: "#94A3B8" }}>Send email notifications for tasks and alerts</Typography>
+
+            <Box sx={card}>
+              <Typography sx={{ fontWeight: 700, color: "#0F172A", mb: 2 }}>Channels</Typography>
+              <Box display="flex" justifyContent="space-between" alignItems="center" py={1.5} sx={{ borderBottom: "1px solid #F1F5F9" }}>
+                <Box>
+                  <Typography sx={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>In App</Typography>
+                  <Typography sx={{ fontSize: "0.78rem", color: "#94A3B8" }}>Show notifications inside the portal</Typography>
+                </Box>
+                <Switch checked={settings.inAppNotification} onChange={() => toggle("inAppNotification")} />
               </Box>
-              <Switch checked={settings.channels.email} onChange={(e) => setSettings((p) => ({ ...p, channels: { ...p.channels, email: e.target.checked } }))} sx={{ "& .Mui-checked": { color: "#2563EB" }, "& .Mui-checked + .MuiSwitch-track": { bgcolor: "#2563EB" } }} />
+              <Box display="flex" justifyContent="space-between" alignItems="center" py={1.5}>
+                <Box>
+                  <Typography sx={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>Email</Typography>
+                  <Typography sx={{ fontSize: "0.78rem", color: "#94A3B8" }}>Send email notifications for tasks and alerts</Typography>
+                </Box>
+                <Switch checked={settings.emailNotification} onChange={() => toggle("emailNotification")} />
+              </Box>
             </Box>
           </Box>
-        </Box>
+        )}
 
         <Box display="flex" alignItems="center" gap={2} mt={2}>
-          <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSave} sx={{ textTransform: "none", bgcolor: "#2563EB", borderRadius: 2 }}>Save Settings</Button>
-          {saved && <Chip label="Settings saved" size="small" sx={{ bgcolor: "#F0FDF4", color: "#16A34A" }} />}
+          <Button startIcon={<SaveIcon />} variant="contained" disabled={loading || saving} onClick={handleSave}
+            sx={{ textTransform: "none", bgcolor: "#2563EB", borderRadius: 2 }}>
+            {saving ? "Saving..." : "Save Preferences"}
+          </Button>
+          {saved && <Chip label="Saved" size="small" sx={{ bgcolor: "#F0FDF4", color: "#16A34A" }} />}
         </Box>
       </Box>
     </PageLayout>

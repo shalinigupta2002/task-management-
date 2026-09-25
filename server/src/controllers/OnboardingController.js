@@ -4,6 +4,11 @@ import asyncHandler from "../utils/asyncHandler.js";
 
 class OnboardingController {
   listPlans = asyncHandler(async (_req, res) => {
+    // Public pricing must never be served from a stale browser/proxy cache after
+    // Super Admin updates subscription plan prices.
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
     const plans = await OnboardingService.listPublicPlans();
     return ApiResponse.success(res, plans);
   });

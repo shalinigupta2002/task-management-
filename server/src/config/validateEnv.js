@@ -25,6 +25,20 @@ export function validateProductionEnv() {
   if (process.env.JWT_SECRET.length < 32) {
     throw new Error("JWT_SECRET must be at least 32 characters in production");
   }
+
+  const cors = process.env.CORS_ORIGIN?.trim();
+  if (!cors || cors === "*" || cors.split(",").map((s) => s.trim()).includes("*")) {
+    throw new Error(
+      "CORS_ORIGIN must be an explicit frontend origin in production (wildcard * is not allowed)"
+    );
+  }
+
+  const hasRazorpay = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+  if (!hasRazorpay && process.env.ALLOW_INTERNAL_PAYMENT !== "true") {
+    throw new Error(
+      "Production requires RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET, or explicit ALLOW_INTERNAL_PAYMENT=true for staging-only INTERNAL checkout"
+    );
+  }
 }
 
 export default validateProductionEnv;

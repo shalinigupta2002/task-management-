@@ -10,14 +10,28 @@ const config = {
   databaseDirectUrl: process.env.DIRECT_URL,
   jwt: {
     secret: process.env.JWT_SECRET || "dev-secret-change-me",
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    /** Short-lived access token — use refresh tokens for session continuity. */
+    expiresIn: process.env.JWT_EXPIRES_IN || "15m",
+    /** Refresh token lifetime for /auth/refresh. */
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   },
   cors: {
+    // Never default to "*" — credentials + wildcard is unsafe and invalid in browsers.
     origin: process.env.CORS_ORIGIN
       ? (process.env.CORS_ORIGIN.includes(",")
           ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim())
           : process.env.CORS_ORIGIN.trim())
-      : "*",
+      : (process.env.NODE_ENV === "production"
+          ? false
+          // Vite may bump the port when 5173 is already in use (5174, 5175, …).
+          : [
+              "http://localhost:5173",
+              "http://127.0.0.1:5173",
+              "http://localhost:5174",
+              "http://127.0.0.1:5174",
+              "http://localhost:5175",
+              "http://127.0.0.1:5175",
+            ]),
     credentials: true,
   },
   swagger: {

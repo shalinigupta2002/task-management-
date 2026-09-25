@@ -141,7 +141,16 @@ class UserService {
     if (isEmployee(ctx) && ctx.id !== id) {
       throw ApiError.forbidden("You can only access your own profile");
     }
+    // Company tenant check (SUPER_ADMIN unrestricted; others same-company only)
     assertResourceAccess(ctx, user);
+
+    // Sub Admin: department scope on GET /user/:id (mirrors list/update rules).
+    // Own profile always allowed; other users must share the Sub Admin's department.
+    if (isSubAdmin(ctx) && ctx.id !== id) {
+      if (!ctx.departmentId || user.departmentId !== ctx.departmentId) {
+        throw ApiError.forbidden("Sub Admin can only access users in their department");
+      }
+    }
 
     return sanitizeUser(user);
   }

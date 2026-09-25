@@ -37,17 +37,17 @@ export default function Header({ drawerWidth = DRAWER_WIDTH }) {
   // Load active logged-in user dynamically from localStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("employeeProfile");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.firstName || parsed.username) {
-          setUser({
-            name: parsed.firstName
-              ? `${parsed.firstName} ${parsed.lastName || ""}`.trim()
-              : parsed.username,
-            role: parsed.role || parsed.designation || "Administrator",
-          });
-        }
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const name = parsed.name
+          || `${parsed.firstName || ""} ${parsed.lastName || ""}`.trim()
+          || parsed.email
+          || "User";
+        setUser({
+          name,
+          role: parsed.role?.name || parsed.roleName || parsed.role || parsed.designation || "Administrator",
+        });
       }
     } catch (e) {
       console.error("Failed to parse user session in Header", e);

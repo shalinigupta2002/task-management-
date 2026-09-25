@@ -15,6 +15,7 @@ class ExtensionRepository {
       const where = {};
       if (query.taskId) where.taskId = query.taskId;
       if (query.status) where.status = query.status;
+      if (query.requestedById) where.requestedById = query.requestedById;
       if (query.companyId) where.task = { companyId: query.companyId };
 
       const [items, total] = await Promise.all([

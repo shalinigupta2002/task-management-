@@ -2,7 +2,8 @@ import { USE_MOCK_API } from "../constants/config";
 import companyService from "./companyService";
 import dashboardService from "./dashboardService";
 import taskCategoryService from "./taskCategoryService";
-import { getPlans, getAuditLogs } from "../utils/superAdminStorage";
+import planService from "./planService";
+import auditLogService from "./auditLogService";
 import { buildSuperAdminReports } from "../utils/superAdminReports";
 
 function unwrapList(result) {
@@ -16,20 +17,33 @@ const superAdminReportsService = {
   async getReports(filters = {}) {
     let companies = [];
     let categories = [];
+    let plans = [];
+    let auditLogs = [];
     let backendTaskStats = null;
 
     try {
-      const companiesRes = await companyService.getAll();
-      companies = unwrapList(companiesRes);
+      companies = unwrapList(await companyService.getAll({ limit: 200 }));
     } catch {
       companies = [];
     }
 
     try {
-      const catRes = await taskCategoryService.getAll({ limit: 100 });
-      categories = unwrapList(catRes);
+      categories = unwrapList(await taskCategoryService.getAll({ limit: 100 }));
     } catch {
       categories = [];
+    }
+
+    try {
+      const planRes = await planService.getAll();
+      plans = unwrapList(planRes?.data ?? planRes);
+    } catch {
+      plans = [];
+    }
+
+    try {
+      auditLogs = unwrapList(await auditLogService.getAll({ limit: 100 }));
+    } catch {
+      auditLogs = [];
     }
 
     if (!USE_MOCK_API) {
@@ -43,9 +57,9 @@ const superAdminReportsService = {
 
     const report = buildSuperAdminReports({
       companies,
-      plans: getPlans(),
+      plans,
       categories,
-      auditLogs: getAuditLogs(),
+      auditLogs,
       backendTaskStats,
       filters,
     });

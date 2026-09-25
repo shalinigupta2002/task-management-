@@ -166,7 +166,7 @@ export default function TaskList() {
     <Layout>
       <Box sx={{ pb: 3 }}>
         <Box display="flex" flexWrap="wrap" justifyContent="space-between" alignItems="flex-start" gap={2} mb={2}>
-          <Box>
+        <Box>
             <Typography sx={{ fontWeight: 800, color: "#0F172A", fontSize: "1.5rem" }}>{isAssigned ? "Assigned Tasks" : "Tasks"}</Typography>
             <Breadcrumbs sx={{ mt: 0.5, fontSize: "0.8rem" }}>
               <Link component={RouterLink} to="/dashboard" underline="hover" color="#94A3B8" sx={{ fontSize: "0.8rem" }}>Home</Link>

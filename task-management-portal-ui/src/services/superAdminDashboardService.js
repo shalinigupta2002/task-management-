@@ -1,12 +1,9 @@
 import { USE_MOCK_API } from "../constants/config";
 import companyService from "./companyService";
 import dashboardService from "./dashboardService";
-import {
-  getPlans,
-  getAuditLogs,
-  getNotifications,
-  getGlobalSettings,
-} from "../utils/superAdminStorage";
+import planService from "./planService";
+import auditLogService from "./auditLogService";
+import notificationService from "./notificationService";
 import { buildSuperAdminDashboard } from "../utils/superAdminDashboard";
 
 function unwrapList(result) {
@@ -17,21 +14,41 @@ function unwrapList(result) {
 }
 
 /**
- * Loads Super Admin dashboard data.
- * Companies: companyService (mock CRUD or API).
- * Plans / audit / notifications: storage fallback until dedicated super-admin APIs exist.
- * Task breakdown: dashboardService when USE_MOCK_API is false; otherwise derived from tenant data.
+ * Super Admin dashboard — live APIs only when USE_MOCK_API is false.
+ * Empty API results yield zeros/empty arrays (no storage demo fallback).
  */
 const superAdminDashboardService = {
   async getDashboard() {
     let companies = [];
+    let plans = [];
+    let auditLogs = [];
+    let notifications = [];
     let backendTaskStats = null;
 
     try {
-      const companiesRes = await companyService.getAll();
-      companies = unwrapList(companiesRes);
+      companies = unwrapList(await companyService.getAll({ limit: 200 }));
     } catch {
       companies = [];
+    }
+
+    try {
+      const planRes = await planService.getAll();
+      plans = unwrapList(planRes?.data ?? planRes);
+    } catch {
+      plans = [];
+    }
+
+    try {
+      auditLogs = unwrapList(await auditLogService.getAll({ limit: 50 }));
+    } catch {
+      auditLogs = [];
+    }
+
+    try {
+      const notifRes = await notificationService.getAll({ limit: 50 });
+      notifications = unwrapList(notifRes?.items ?? notifRes);
+    } catch {
+      notifications = [];
     }
 
     if (!USE_MOCK_API) {
@@ -45,10 +62,10 @@ const superAdminDashboardService = {
 
     const dashboard = buildSuperAdminDashboard({
       companies,
-      plans: getPlans(),
-      auditLogs: getAuditLogs(),
-      notifications: getNotifications(),
-      settings: getGlobalSettings(),
+      plans,
+      auditLogs,
+      notifications,
+      settings: {},
       backendTaskStats,
     });
 

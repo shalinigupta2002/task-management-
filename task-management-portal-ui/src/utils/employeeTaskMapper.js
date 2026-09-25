@@ -46,6 +46,7 @@ export function mapEmployeeTask(task, authUserId = null) {
     rawStatus: task.status,
     assignedBy: personName(primary?.assignedBy || task.createdBy),
     assignedDate: formatTaskTableDate(primary?.assignedDate || task.createdAt) || "—",
+    assignedDateRaw: primary?.assignedDate || task.createdAt || null,
     dueDate: formatTaskTableDate(task.dueDate) || "—",
     dueDateRaw: task.dueDate || null,
     completedAt: task.completedAt || null,

@@ -31,7 +31,8 @@ class NotificationController {
     const notification = await NotificationService.create(
       req.validatedBody || req.body,
       "system",
-      true
+      true,
+      req.user
     );
     return ApiResponse.created(res, notification, "Notification created successfully");
   });

@@ -1,48 +1,43 @@
 import { Router } from "express";
-import AuthService from "../services/AuthService.js";
+import AuthService, { loginSchema, refreshSchema } from "../services/AuthService.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import validate from "../middlewares/validate.middleware.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
 import { loginRateLimit } from "../middlewares/rateLimit.middleware.js";
-import { z } from "zod";
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
 
 const router = Router();
 
-/**
- * @swagger
- * /auth/login:
- *   post:
- *     tags: [Auth]
- *     summary: Login and obtain JWT
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email, password]
- *             properties:
- *               email: { type: string, format: email }
- *               password: { type: string }
- *     responses:
- *       200:
- *         description: Login successful
- *       401:
- *         description: Invalid credentials
- */
 router.post(
   "/login",
   loginRateLimit,
   validate(loginSchema),
   asyncHandler(async (req, res) => {
-    const result = await AuthService.login(req.validatedBody.email, req.validatedBody.password);
+    const body = req.validatedBody || req.body;
+    const result = await AuthService.login(body.email, body.password);
     return ApiResponse.success(res, result, "Login successful");
+  })
+);
+
+router.post(
+  "/refresh",
+  validate(refreshSchema),
+  asyncHandler(async (req, res) => {
+    const body = req.validatedBody || req.body;
+    const result = await AuthService.refresh(body.refreshToken);
+    return ApiResponse.success(res, result, "Token refreshed");
+  })
+);
+
+router.post(
+  "/logout",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    await AuthService.logout(req.user.userId, {
+      companyId: req.user.companyId,
+      role: req.user.role,
+    });
+    return ApiResponse.success(res, { success: true }, "Logged out");
   })
 );
 

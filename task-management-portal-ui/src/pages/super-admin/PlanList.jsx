@@ -1,97 +1,104 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Grid, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Switch, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  CircularProgress, Typography, Chip,
+  IconButton, Chip, Switch, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+  Typography, CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import CardMembershipIcon from "@mui/icons-material/CardMembership";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import SuperAdminLayout from "../../components/layouts/SuperAdminLayout";
-import { StatCard, PageHeader, ConfirmDialog, card, tableHeadCell, fieldSx } from "../../components/super-admin/shared";
-import { addAuditLog } from "../../utils/superAdminStorage";
-import { averageMonthlyPrice, averageYearlyPrice } from "../../utils/planStorage";
-import { planService } from "../../services";
+import { PageHeader, StatCard, ConfirmDialog, card, tableHeadCell, fieldSx } from "../../components/super-admin/shared";
+import planService from "../../services/planService";
+import { getErrorMessage } from "../../utils/session";
 import toast from "../../utils/toast";
+
+function averageMonthlyPrice(plans) {
+  if (!plans.length) return 0;
+  const sum = plans.reduce((acc, p) => acc + Number(p.monthlyPrice || 0), 0);
+  return Math.round(sum / plans.length);
+}
+
+function averageYearlyPrice(plans) {
+  if (!plans.length) return 0;
+  const sum = plans.reduce((acc, p) => acc + Number(p.yearlyPrice || 0), 0);
+  return Math.round(sum / plans.length);
+}
 
 export default function PlanList() {
   const navigate = useNavigate();
-  const [plans, setLocal] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
+  const [confirm, setConfirm] = useState(null);
   const [pricingDialog, setPricingDialog] = useState(null);
   const [featuresDialog, setFeaturesDialog] = useState(null);
   const [detailsDialog, setDetailsDialog] = useState(null);
-  const [confirm, setConfirm] = useState(null);
   const [form, setForm] = useState({});
 
-  const loadPlans = async () => {
-    setLoading(true);
-    setError(null);
+  const loadPlans = useCallback(async () => {
     try {
+      setLoading(true);
+      setError("");
       const res = await planService.getAll();
-      if (res.success) {
-        setLocal(Array.isArray(res.data) ? res.data : []);
-      } else {
-        setError("Failed to load plans");
-      }
+      const list = res?.data || (Array.isArray(res) ? res : []);
+      setPlans(Array.isArray(list) ? list : []);
     } catch (err) {
-      console.error(err);
-      setError("Error connecting to backend API");
+      setPlans([]);
+      setError(getErrorMessage(err, "Failed to load plans"));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadPlans();
-  }, []);
+  }, [loadPlans]);
 
-  const togglePlan = async (id, currentEnabled) => {
+  const togglePlan = async (id, currentlyEnabled) => {
     try {
-      await planService.update(id, { enabled: !currentEnabled });
-      toast.success("Plan status updated successfully");
-      addAuditLog({ id: `al-${Date.now()}`, action: "Plan Toggled", entity: id, user: "Super Admin", date: new Date().toLocaleString(), ip: "192.168.1.1" });
+      await planService.update(id, {
+        status: currentlyEnabled ? "INACTIVE" : "ACTIVE",
+        enabled: !currentlyEnabled,
+      });
+      toast.success(currentlyEnabled ? "Plan disabled" : "Plan enabled");
       loadPlans();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to update plan status");
+      toast.error(getErrorMessage(err, "Failed to update plan"));
     }
   };
 
   const savePricing = async () => {
-    const monthly = Number(form.monthlyPrice);
-    const yearly = Number(form.yearlyPrice);
-    if (monthly < 0 || yearly < 0) {
-      toast.error("Prices cannot be negative");
-      return;
-    }
     try {
-      await planService.update(pricingDialog.id, { monthlyPrice: monthly, yearlyPrice: yearly });
+      await planService.update(pricingDialog.id, {
+        monthlyPrice: Number(form.monthlyPrice),
+        yearlyPrice: Number(form.yearlyPrice),
+      });
       toast.success("Plan pricing updated successfully");
       setPricingDialog(null);
       loadPlans();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to update plan pricing");
+      toast.error(getErrorMessage(err, "Failed to update plan pricing"));
     }
   };
 
   const saveFeatures = async () => {
     try {
       await planService.update(featuresDialog.id, {
-        features: form.features.split("\n").filter(Boolean),
+        features: String(form.features || "")
+          .split("\n")
+          .map((f) => f.trim())
+          .filter(Boolean),
       });
       toast.success("Plan features updated successfully");
       setFeaturesDialog(null);
       loadPlans();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to update plan features");
+      toast.error(getErrorMessage(err, "Failed to update plan features"));
     }
   };
 
@@ -102,8 +109,7 @@ export default function PlanList() {
       setConfirm(null);
       loadPlans();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete plan");
+      toast.error(getErrorMessage(err, "Failed to delete plan"));
     }
   };
 
@@ -115,8 +121,14 @@ export default function PlanList() {
       <Box sx={{ pb: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2} mb={1}>
           <PageHeader title="Plan Management" crumbs={[{ label: "Plan Management" }, { label: "Plan List" }]} />
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate("/super-admin/plans/add")}
-            sx={{ textTransform: "none", bgcolor: "#2563EB", borderRadius: 2, fontWeight: 600 }}>Add Plan</Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate("/super-admin/plans/add")}
+            sx={{ textTransform: "none", bgcolor: "#2563EB", borderRadius: 2, fontWeight: 600 }}
+          >
+            Add Plan
+          </Button>
         </Box>
 
         <Grid container spacing={2} sx={{ my: 2.5 }}>
@@ -124,7 +136,13 @@ export default function PlanList() {
             <StatCard title="Total Plans" value={String(plans.length)} icon={CardMembershipIcon} color="#2563EB" bg="#EFF6FF" />
           </Grid>
           <Grid item xs={12} sm={4}>
-            <StatCard title="Enabled Plans" value={String(plans.filter((p) => p.enabled !== false && p.status !== "INACTIVE").length)} icon={CardMembershipIcon} color="#16A34A" bg="#F0FDF4" />
+            <StatCard
+              title="Enabled Plans"
+              value={String(plans.filter((p) => p.enabled !== false && p.status !== "INACTIVE").length)}
+              icon={CardMembershipIcon}
+              color="#16A34A"
+              bg="#F0FDF4"
+            />
           </Grid>
           <Grid item xs={12} sm={4}>
             <StatCard
@@ -141,9 +159,14 @@ export default function PlanList() {
         {loading ? (
           <Box display="flex" justifyContent="center" py={8}><CircularProgress /></Box>
         ) : error ? (
-          <Box sx={{ ...card, p: 4, textAlign: "center", borderColor: "#FEE2E2", bgcolor: "#FEF2F2" }}>
+          <Box sx={{ ...card, p: 4, textAlign: "center" }}>
             <Typography color="error" sx={{ fontWeight: 600 }}>{error}</Typography>
-            <Button variant="outlined" color="primary" onClick={loadPlans} sx={{ mt: 2, textTransform: "none" }}>Try Again</Button>
+            <Button variant="outlined" onClick={loadPlans} sx={{ mt: 2, textTransform: "none" }}>Try Again</Button>
+          </Box>
+        ) : plans.length === 0 ? (
+          <Box sx={{ ...card, p: 4, textAlign: "center" }}>
+            <Typography sx={{ fontWeight: 700, mb: 1 }}>No plans yet.</Typography>
+            <Typography sx={{ color: "#64748B" }}>Create a subscription plan to get started.</Typography>
           </Box>
         ) : (
           <Box sx={{ ...card, p: 0, overflow: "hidden" }}>
@@ -171,33 +194,67 @@ export default function PlanList() {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ minWidth: 120 }}>
-                          <Typography sx={{ fontSize: "0.82rem", fontWeight: 600, color: "#0F172A" }}>₹{p.monthlyPrice}/month</Typography>
+                          <Typography sx={{ fontSize: "0.82rem", fontWeight: 600 }}>₹{p.monthlyPrice}/month</Typography>
                           <Typography sx={{ fontSize: "0.75rem", color: "#64748B" }}>₹{p.yearlyPrice}/year</Typography>
                         </TableCell>
                         <TableCell>{p.users ?? p.maxEmployees}</TableCell>
                         <TableCell>{p.storage}</TableCell>
                         <TableCell sx={{ fontSize: "0.82rem", color: "#64748B", maxWidth: 180 }}>
-                          {(p.features || []).slice(0, 2).join(", ")}{(p.features || []).length > 2 ? "..." : ""}
+                          {(p.features || []).slice(0, 2).join(", ")}
+                          {(p.features || []).length > 2 ? "..." : ""}
                         </TableCell>
                         <TableCell>
                           <Chip
                             label={enabled ? "Active" : "Disabled"}
                             size="small"
                             sx={{
-                              height: 22, fontSize: "0.65rem", fontWeight: 600,
+                              height: 22,
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
                               bgcolor: enabled ? "#F0FDF4" : "#F1F5F9",
                               color: enabled ? "#16A34A" : "#64748B",
                             }}
                           />
                         </TableCell>
-                        <TableCell><Switch checked={enabled} onChange={() => togglePlan(p.id, enabled)} size="small" /></TableCell>
+                        <TableCell>
+                          <Switch checked={enabled} onChange={() => togglePlan(p.id, enabled)} size="small" />
+                        </TableCell>
                         <TableCell>
                           <Box display="flex" gap={0.3}>
-                            <IconButton size="small" onClick={() => navigate(`/super-admin/plans/${p.id}/edit`)} title="Edit"><EditOutlinedIcon sx={{ fontSize: 18 }} /></IconButton>
-                            <IconButton size="small" onClick={() => setDetailsDialog(p)} title="View details"><VisibilityOutlinedIcon sx={{ fontSize: 18 }} /></IconButton>
-                            <IconButton size="small" onClick={() => { setForm({ monthlyPrice: p.monthlyPrice, yearlyPrice: p.yearlyPrice }); setPricingDialog(p); }} title="Change pricing"><CurrencyRupeeIcon sx={{ fontSize: 18 }} /></IconButton>
-                            <IconButton size="small" onClick={() => { setForm({ features: (p.features || []).join("\n") }); setFeaturesDialog(p); }} title="Change features"><CardMembershipIcon sx={{ fontSize: 18 }} /></IconButton>
-                            <IconButton size="small" sx={{ color: "#DC2626" }} onClick={() => setConfirm({ id: p.id, title: "Delete Plan", message: `Delete ${name} plan?` })} title="Delete"><DeleteOutlineIcon sx={{ fontSize: 18 }} /></IconButton>
+                            <IconButton size="small" onClick={() => navigate(`/super-admin/plans/${p.id}/edit`)} title="Edit">
+                              <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                            <IconButton size="small" onClick={() => setDetailsDialog(p)} title="View details">
+                              <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setForm({ monthlyPrice: p.monthlyPrice, yearlyPrice: p.yearlyPrice });
+                                setPricingDialog(p);
+                              }}
+                              title="Change pricing"
+                            >
+                              <CurrencyRupeeIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setForm({ features: (p.features || []).join("\n") });
+                                setFeaturesDialog(p);
+                              }}
+                              title="Change features"
+                            >
+                              <CardMembershipIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              sx={{ color: "#DC2626" }}
+                              onClick={() => setConfirm({ id: p.id, title: "Delete Plan", message: `Delete ${name} plan?` })}
+                              title="Delete"
+                            >
+                              <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -224,8 +281,13 @@ export default function PlanList() {
 
       <Dialog open={Boolean(featuresDialog)} onClose={() => setFeaturesDialog(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 700 }}>Change Features — {featuresDialog?.planName || featuresDialog?.name}</DialogTitle>
-        <DialogContent><TextField fullWidth multiline rows={5} value={form.features || ""} onChange={(e) => setForm({ features: e.target.value })} placeholder="One feature per line" sx={{ ...fieldSx, mt: 1 }} /></DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}><Button onClick={() => setFeaturesDialog(null)} sx={{ textTransform: "none" }}>Cancel</Button><Button variant="contained" onClick={saveFeatures} sx={{ textTransform: "none", bgcolor: "#2563EB" }}>Save</Button></DialogActions>
+        <DialogContent>
+          <TextField fullWidth multiline rows={5} value={form.features || ""} onChange={(e) => setForm({ features: e.target.value })} placeholder="One feature per line" sx={{ ...fieldSx, mt: 1 }} />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setFeaturesDialog(null)} sx={{ textTransform: "none" }}>Cancel</Button>
+          <Button variant="contained" onClick={saveFeatures} sx={{ textTransform: "none", bgcolor: "#2563EB" }}>Save</Button>
+        </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(detailsDialog)} onClose={() => setDetailsDialog(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
@@ -242,19 +304,22 @@ export default function PlanList() {
           {(detailsDialog?.features || []).map((f) => (
             <Typography key={f} sx={{ fontSize: "0.85rem", color: "#475569" }}>• {f}</Typography>
           ))}
-          <Chip
-            label={detailsDialog?.enabled !== false && detailsDialog?.status !== "INACTIVE" ? "Active" : "Disabled"}
-            size="small"
-            sx={{ mt: 2, fontWeight: 600 }}
-          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setDetailsDialog(null)} sx={{ textTransform: "none" }}>Close</Button>
-          <Button variant="contained" onClick={() => { setDetailsDialog(null); navigate(`/super-admin/plans/${detailsDialog.id}/edit`); }} sx={{ textTransform: "none", bgcolor: "#2563EB" }}>Edit Plan</Button>
+          <Button variant="contained" onClick={() => { const id = detailsDialog?.id; setDetailsDialog(null); navigate(`/super-admin/plans/${id}/edit`); }} sx={{ textTransform: "none", bgcolor: "#2563EB" }}>Edit Plan</Button>
         </DialogActions>
       </Dialog>
 
-      <ConfirmDialog open={Boolean(confirm)} title={confirm?.title} message={confirm?.message} confirmLabel="Delete" confirmColor="#DC2626" onClose={() => setConfirm(null)} onConfirm={handleDelete} />
+      <ConfirmDialog
+        open={Boolean(confirm)}
+        title={confirm?.title}
+        message={confirm?.message}
+        confirmLabel="Delete"
+        confirmColor="#DC2626"
+        onClose={() => setConfirm(null)}
+        onConfirm={handleDelete}
+      />
     </SuperAdminLayout>
   );
 }

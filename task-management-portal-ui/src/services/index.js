@@ -14,4 +14,8 @@ export { default as planService } from "./planService";
 export { default as superAdminDashboardService } from "./superAdminDashboardService";
 export { default as superAdminReportsService } from "./superAdminReportsService";
 export { default as roleService } from "./roleService";
-
+export { default as preferenceService } from "./preferenceService";
+export { default as auditLogService } from "./auditLogService";
+export { default as conversationService } from "./conversationService";
+export { default as taskOccurrenceService } from "./taskOccurrenceService";
+export { default as onboardingService } from "./onboardingService";
