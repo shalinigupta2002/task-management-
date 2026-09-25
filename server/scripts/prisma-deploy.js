@@ -57,16 +57,6 @@ runPrisma(["generate"]);
 runPrisma(["migrate", "deploy"]);
 console.log("Prisma generate + migrate deploy completed.");
 
-// Temporary one-time production plan sync
-const syncResult = spawnSync(process.execPath, ["./scripts/sync-production-plans.js"], {
-  stdio: "inherit",
-  env: process.env,
-  shell: false,
-});
-if (syncResult.status !== 0) {
-  process.exit(syncResult.status ?? 1);
-}
-
 // Demo seed is opt-in only. Never auto-seed on production/empty DB during deploy.
 if (process.env.ALLOW_DEMO_SEED === "true") {
   const seedResult = spawnSync(process.execPath, ["./scripts/ensure-demo-seed.js"], {
